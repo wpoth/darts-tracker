@@ -7,7 +7,7 @@ import { ScoreInput } from "@/src/components/ScoreInput";
 import { TurnHistory } from "@/src/components/TurnHistory";
 import { applyTurn } from "@/src/lib/dartsScoring";
 import type { Player, Turn } from "@/src/types/darts";
-
+import { speakTurnResult } from "@/src/lib/voiceover";
 const STARTING_SCORE = 501;
 
 export default function HomeScreen() {
@@ -27,6 +27,7 @@ export default function HomeScreen() {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [scoreInput, setScoreInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [legFinished, setLegFinished] = useState(false);
 
   const currentPlayer = players[currentPlayerIndex];
 
@@ -36,7 +37,40 @@ export default function HomeScreen() {
       : currentPlayerIndex + 1;
   }
 
+  function resetLeg(startingPlayerIndex = 0) {
+    setPlayers((currentPlayers) =>
+      currentPlayers.map((player) => ({
+        ...player,
+        remaining: STARTING_SCORE,
+      }))
+    );
+
+    setCurrentPlayerIndex(startingPlayerIndex);
+    setScoreInput("");
+    setTurns([]);
+    setLegFinished(false);
+  }
+
+  function finishLeg(winnerName: string) {
+    setLegFinished(true);
+    setScoreInput("");
+
+    Alert.alert("Leg finished", `${winnerName} wins the leg.`, [
+      {
+        text: "Start new leg",
+        onPress: () => {
+          resetLeg(0);
+        },
+      },
+    ]);
+  }
+
   function submitScore() {
+    if (legFinished) {
+      Alert.alert("Leg already finished", "Start a new leg to continue.");
+      return;
+    }
+
     const score = Number(scoreInput);
 
     const firstResult = applyTurn(currentPlayer.remaining, score, {
@@ -67,6 +101,13 @@ export default function HomeScreen() {
                 bust: true,
               };
 
+              speakTurnResult(
+                currentPlayer.name,
+                score,
+                currentPlayer.remaining,
+                true
+              );
+
               setTurns((currentTurns) => [turn, ...currentTurns]);
               setScoreInput("");
               setCurrentPlayerIndex(getNextPlayerIndex());
@@ -89,6 +130,13 @@ export default function HomeScreen() {
                 bust: false,
               };
 
+              speakTurnResult(
+                currentPlayer.name,
+                score,
+                currentPlayer.remaining,
+                true
+              );
+
               setPlayers((currentPlayers) =>
                 currentPlayers.map((player) => {
                   if (player.id !== currentPlayer.id) {
@@ -103,12 +151,8 @@ export default function HomeScreen() {
               );
 
               setTurns((currentTurns) => [turn, ...currentTurns]);
-              setScoreInput("");
 
-              Alert.alert(
-                "Leg finished",
-                `${currentPlayer.name} wins the leg.`
-              );
+              finishLeg(currentPlayer.name);
             },
           },
         ]
@@ -126,6 +170,13 @@ export default function HomeScreen() {
       bust: firstResult.bust,
     };
 
+    speakTurnResult(
+      currentPlayer.name,
+      score,
+      firstResult.remainingAfter,
+      firstResult.bust
+    );
+
     setPlayers((currentPlayers) =>
       currentPlayers.map((player) => {
         if (player.id !== currentPlayer.id) {
@@ -141,10 +192,20 @@ export default function HomeScreen() {
 
     setTurns((currentTurns) => [turn, ...currentTurns]);
     setScoreInput("");
+
+    if (firstResult.remainingAfter === 0) {
+      finishLeg(currentPlayer.name);
+      return;
+    }
+
     setCurrentPlayerIndex(getNextPlayerIndex());
   }
 
   function undoLastTurn() {
+    if (legFinished) {
+      return;
+    }
+
     const [lastTurn, ...previousTurns] = turns;
 
     if (!lastTurn) {
@@ -175,24 +236,17 @@ export default function HomeScreen() {
     setTurns(previousTurns);
   }
 
-  function resetMatch() {
-    setPlayers((currentPlayers) =>
-      currentPlayers.map((player) => ({
-        ...player,
-        remaining: STARTING_SCORE,
-      }))
-    );
-
-    setCurrentPlayerIndex(0);
-    setScoreInput("");
-    setTurns([]);
-  }
-
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>501 x01</Text>
-        <Text style={styles.title}>Darts Tracker</Text>
+        <View>
+          <Text style={styles.eyebrow}>501 x01</Text>
+          <Text style={styles.title}>Darts Tracker</Text>
+        </View>
+
+        <Text style={styles.currentTurn}>
+          {legFinished ? "Leg finished" : currentPlayer.name}
+        </Text>
       </View>
 
       <View style={styles.playersGrid}>
@@ -200,14 +254,9 @@ export default function HomeScreen() {
           <PlayerScoreCard
             key={player.id}
             player={player}
-            isActive={index === currentPlayerIndex}
+            isActive={!legFinished && index === currentPlayerIndex}
           />
         ))}
-      </View>
-
-      <View style={styles.currentTurnCard}>
-        <Text style={styles.label}>Current player</Text>
-        <Text style={styles.currentPlayerName}>{currentPlayer.name}</Text>
       </View>
 
       <ScoreInput
@@ -217,12 +266,18 @@ export default function HomeScreen() {
       />
 
       <View style={styles.actions}>
-        <Pressable style={styles.secondaryButton} onPress={undoLastTurn}>
+        <Pressable
+          style={[styles.secondaryButton, legFinished && styles.disabledButton]}
+          onPress={undoLastTurn}
+          disabled={legFinished}
+        >
           <Text style={styles.secondaryButtonText}>Undo</Text>
         </Pressable>
 
-        <Pressable style={styles.secondaryButton} onPress={resetMatch}>
-          <Text style={styles.secondaryButtonText}>Reset</Text>
+        <Pressable style={styles.secondaryButton} onPress={() => resetLeg(0)}>
+          <Text style={styles.secondaryButtonText}>
+            {legFinished ? "New leg" : "Reset"}
+          </Text>
         </Pressable>
       </View>
 
@@ -235,65 +290,60 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#020617",
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   header: {
-    marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
   },
   eyebrow: {
     color: "#f97316",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   title: {
     color: "#ffffff",
-    fontSize: 34,
-    fontWeight: "800",
-    marginTop: 6,
+    fontSize: 26,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  currentTurn: {
+    color: "#fed7aa",
+    fontSize: 14,
+    fontWeight: "900",
+    marginBottom: 3,
   },
   playersGrid: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  currentTurnCard: {
-    backgroundColor: "#0f172a",
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#334155",
-    marginBottom: 16,
-  },
-  label: {
-    color: "#9ca3af",
-    fontSize: 15,
-    marginBottom: 6,
-  },
-  currentPlayerName: {
-    color: "#ffffff",
-    fontSize: 24,
-    fontWeight: "800",
+    gap: 10,
+    marginBottom: 12,
   },
   actions: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
+    gap: 10,
+    marginTop: 10,
   },
   secondaryButton: {
     flex: 1,
     backgroundColor: "#111827",
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingVertical: 11,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#1f2937",
   },
+  disabledButton: {
+    opacity: 0.45,
+  },
   secondaryButtonText: {
     color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
   },
 });
