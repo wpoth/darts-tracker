@@ -9,6 +9,7 @@ import { TurnHistory } from "@/src/components/TurnHistory";
 import { applyTurn } from "@/src/lib/dartsScoring";
 import { speakTurnResult } from "@/src/lib/voiceover";
 import type { Player, Turn } from "@/src/types/darts";
+import { CheckoutSuggestions } from "@/src/components/CheckoutSuggestions";
 
 export default function X01Screen() {
     const params = useLocalSearchParams<{
@@ -202,6 +203,11 @@ export default function X01Screen() {
                     />
                 ))}
             </View>
+
+            <CheckoutSuggestions
+                remaining={currentPlayer.remaining}
+                enabled={doubleOut && !legFinished}
+            />
 
             <ScoreInput
                 value={scoreInput}
