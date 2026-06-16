@@ -177,9 +177,18 @@ export default function HomeScreen() {
             </Pressable>
 
             {isLoggedIn && (
-              <Pressable style={styles.logoutButton} onPress={signOut}>
-                <Text style={styles.logoutButtonText}>Log out</Text>
-              </Pressable>
+              <>
+                <Pressable
+                  style={styles.friendsButton}
+                  onPress={() => router.push("/friends")}
+                >
+                  <Text style={styles.friendsButtonText}>Friends</Text>
+                </Pressable>
+
+                <Pressable style={styles.logoutButton} onPress={signOut}>
+                  <Text style={styles.logoutButtonText}>Log out</Text>
+                </Pressable>
+              </>
             )}
           </View>
         </View>
@@ -401,5 +410,17 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     overflow: "hidden",
+  },
+  friendsButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f97316",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  friendsButtonText: {
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "900",
   },
 });
