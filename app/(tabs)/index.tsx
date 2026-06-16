@@ -1,51 +1,147 @@
 import { useState } from "react";
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { applyTurn } from "@/src/lib/dartsScoring";
 
-type Turn = {
-  score: number;
-  remainingBefore: number;
-  remainingAfter: number;
-  bust: boolean;
-};
+import { PlayerScoreCard } from "@/src/components/PlayerScoreCard";
+import { ScoreInput } from "@/src/components/ScoreInput";
+import { TurnHistory } from "@/src/components/TurnHistory";
+import { applyTurn } from "@/src/lib/dartsScoring";
+import type { Player, Turn } from "@/src/types/darts";
+
+const STARTING_SCORE = 501;
 
 export default function HomeScreen() {
-  const [remaining, setRemaining] = useState(501);
+  const [players, setPlayers] = useState<Player[]>([
+    {
+      id: "player-1",
+      name: "Player 1",
+      remaining: STARTING_SCORE,
+    },
+    {
+      id: "player-2",
+      name: "Player 2",
+      remaining: STARTING_SCORE,
+    },
+  ]);
+
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [scoreInput, setScoreInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
+
+  const currentPlayer = players[currentPlayerIndex];
+
+  function getNextPlayerIndex() {
+    return currentPlayerIndex === players.length - 1
+      ? 0
+      : currentPlayerIndex + 1;
+  }
 
   function submitScore() {
     const score = Number(scoreInput);
 
-    const result = applyTurn(remaining, score);
+    const firstResult = applyTurn(currentPlayer.remaining, score, {
+      requiresDoubleOut: true,
+      finishedOnDouble: false,
+    });
 
-    if (result.error) {
-      Alert.alert("Invalid score", result.error);
+    if (firstResult.error) {
+      Alert.alert("Invalid score", firstResult.error);
+      return;
+    }
+
+    if (firstResult.needsDoubleConfirmation) {
+      Alert.alert(
+        "Double out?",
+        `Did ${currentPlayer.name} finish on a double?`,
+        [
+          {
+            text: "No, bust",
+            style: "cancel",
+            onPress: () => {
+              const turn: Turn = {
+                playerId: currentPlayer.id,
+                playerName: currentPlayer.name,
+                score,
+                remainingBefore: currentPlayer.remaining,
+                remainingAfter: currentPlayer.remaining,
+                bust: true,
+              };
+
+              setTurns((currentTurns) => [turn, ...currentTurns]);
+              setScoreInput("");
+              setCurrentPlayerIndex(getNextPlayerIndex());
+            },
+          },
+          {
+            text: "Yes, checkout",
+            onPress: () => {
+              const finalResult = applyTurn(currentPlayer.remaining, score, {
+                requiresDoubleOut: true,
+                finishedOnDouble: true,
+              });
+
+              const turn: Turn = {
+                playerId: currentPlayer.id,
+                playerName: currentPlayer.name,
+                score,
+                remainingBefore: currentPlayer.remaining,
+                remainingAfter: finalResult.remainingAfter,
+                bust: false,
+              };
+
+              setPlayers((currentPlayers) =>
+                currentPlayers.map((player) => {
+                  if (player.id !== currentPlayer.id) {
+                    return player;
+                  }
+
+                  return {
+                    ...player,
+                    remaining: finalResult.remainingAfter,
+                  };
+                })
+              );
+
+              setTurns((currentTurns) => [turn, ...currentTurns]);
+              setScoreInput("");
+
+              Alert.alert(
+                "Leg finished",
+                `${currentPlayer.name} wins the leg.`
+              );
+            },
+          },
+        ]
+      );
+
       return;
     }
 
     const turn: Turn = {
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
       score,
-      remainingBefore: remaining,
-      remainingAfter: result.remainingAfter,
-      bust: result.bust,
+      remainingBefore: currentPlayer.remaining,
+      remainingAfter: firstResult.remainingAfter,
+      bust: firstResult.bust,
     };
 
-    setTurns((currentTurns) => [turn, ...currentTurns]);
-    setRemaining(result.remainingAfter);
-    setScoreInput("");
+    setPlayers((currentPlayers) =>
+      currentPlayers.map((player) => {
+        if (player.id !== currentPlayer.id) {
+          return player;
+        }
 
-    if (result.remainingAfter === 0) {
-      Alert.alert("Leg finished", "Nice checkout.");
-    }
+        return {
+          ...player,
+          remaining: firstResult.remainingAfter,
+        };
+      })
+    );
+
+    setTurns((currentTurns) => [turn, ...currentTurns]);
+    setScoreInput("");
+    setCurrentPlayerIndex(getNextPlayerIndex());
   }
 
   function undoLastTurn() {
@@ -55,12 +151,39 @@ export default function HomeScreen() {
       return;
     }
 
-    setRemaining(lastTurn.remainingBefore);
+    setPlayers((currentPlayers) =>
+      currentPlayers.map((player) => {
+        if (player.id !== lastTurn.playerId) {
+          return player;
+        }
+
+        return {
+          ...player,
+          remaining: lastTurn.remainingBefore,
+        };
+      })
+    );
+
+    const previousPlayerIndex = players.findIndex(
+      (player) => player.id === lastTurn.playerId
+    );
+
+    if (previousPlayerIndex !== -1) {
+      setCurrentPlayerIndex(previousPlayerIndex);
+    }
+
     setTurns(previousTurns);
   }
 
   function resetMatch() {
-    setRemaining(501);
+    setPlayers((currentPlayers) =>
+      currentPlayers.map((player) => ({
+        ...player,
+        remaining: STARTING_SCORE,
+      }))
+    );
+
+    setCurrentPlayerIndex(0);
     setScoreInput("");
     setTurns([]);
   }
@@ -72,25 +195,26 @@ export default function HomeScreen() {
         <Text style={styles.title}>Darts Tracker</Text>
       </View>
 
-      <View style={styles.scoreCard}>
-        <Text style={styles.label}>Remaining</Text>
-        <Text style={styles.remaining}>{remaining}</Text>
+      <View style={styles.playersGrid}>
+        {players.map((player, index) => (
+          <PlayerScoreCard
+            key={player.id}
+            player={player}
+            isActive={index === currentPlayerIndex}
+          />
+        ))}
       </View>
 
-      <View style={styles.inputSection}>
-        <TextInput
-          value={scoreInput}
-          onChangeText={setScoreInput}
-          keyboardType="number-pad"
-          placeholder="Enter score"
-          placeholderTextColor="#6b7280"
-          style={styles.input}
-        />
-
-        <Pressable style={styles.primaryButton} onPress={submitScore}>
-          <Text style={styles.primaryButtonText}>Submit score</Text>
-        </Pressable>
+      <View style={styles.currentTurnCard}>
+        <Text style={styles.label}>Current player</Text>
+        <Text style={styles.currentPlayerName}>{currentPlayer.name}</Text>
       </View>
+
+      <ScoreInput
+        value={scoreInput}
+        onChangeValue={setScoreInput}
+        onSubmit={submitScore}
+      />
 
       <View style={styles.actions}>
         <Pressable style={styles.secondaryButton} onPress={undoLastTurn}>
@@ -102,25 +226,7 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.history}>
-        <Text style={styles.historyTitle}>Turns</Text>
-
-        {turns.length === 0 ? (
-          <Text style={styles.emptyText}>No turns yet.</Text>
-        ) : (
-          turns.slice(0, 8).map((turn, index) => (
-            <View key={index} style={styles.turnRow}>
-              <Text style={styles.turnText}>
-                {turn.bust ? "Bust" : turn.score}
-              </Text>
-
-              <Text style={styles.turnSubText}>
-                {turn.remainingBefore} → {turn.remainingAfter}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
+      <TurnHistory turns={turns} />
     </SafeAreaView>
   );
 }
@@ -148,46 +254,27 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 6,
   },
-  scoreCard: {
-    backgroundColor: "#111827",
-    borderRadius: 28,
-    padding: 28,
+  playersGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  currentTurnCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    marginBottom: 24,
+    borderColor: "#334155",
+    marginBottom: 16,
   },
   label: {
     color: "#9ca3af",
-    fontSize: 16,
-    marginBottom: 8,
+    fontSize: 15,
+    marginBottom: 6,
   },
-  remaining: {
+  currentPlayerName: {
     color: "#ffffff",
-    fontSize: 88,
-    fontWeight: "900",
-  },
-  inputSection: {
-    gap: 12,
-  },
-  input: {
-    backgroundColor: "#0f172a",
-    borderWidth: 1,
-    borderColor: "#334155",
-    color: "#ffffff",
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    fontSize: 22,
-  },
-  primaryButton: {
-    backgroundColor: "#f97316",
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    color: "#111827",
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: "800",
   },
   actions: {
@@ -208,35 +295,5 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "700",
-  },
-  history: {
-    marginTop: 28,
-  },
-  historyTitle: {
-    color: "#ffffff",
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 12,
-  },
-  emptyText: {
-    color: "#64748b",
-    fontSize: 16,
-  },
-  turnRow: {
-    backgroundColor: "#0f172a",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  turnText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  turnSubText: {
-    color: "#9ca3af",
-    fontSize: 16,
   },
 });
