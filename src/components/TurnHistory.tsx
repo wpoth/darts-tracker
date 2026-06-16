@@ -16,13 +16,23 @@ export function TurnHistory({ turns }: TurnHistoryProps) {
             ) : (
                 turns.slice(0, 3).map((turn, index) => (
                     <View key={index} style={styles.turnRow}>
-                        <Text style={styles.turnText}>
-                            {turn.playerName}: {turn.bust ? "Bust" : turn.score}
-                        </Text>
+                        <View>
+                            <Text style={styles.turnText}>
+                                {turn.playerName}:{" "}
+                                {turn.checkout
+                                    ? `Checkout ${turn.score}`
+                                    : turn.bust
+                                        ? "Bust"
+                                        : turn.score}
+                            </Text>
 
-                        <Text style={styles.turnSubText}>
-                            {turn.remainingBefore} → {turn.remainingAfter}
-                        </Text>
+                            <Text style={styles.turnSubText}>
+                                {turn.remainingBefore} → {turn.remainingAfter}
+                            </Text>
+                        </View>
+
+                        {turn.checkout && <Text style={styles.checkoutBadge}>Win</Text>}
+                        {turn.bust && <Text style={styles.bustBadge}>Bust</Text>}
                     </View>
                 ))
             )}
@@ -63,5 +73,25 @@ const styles = StyleSheet.create({
         color: "#9ca3af",
         fontSize: 13,
         fontWeight: "700",
+    },
+    bustBadge: {
+        color: "#fecaca",
+        backgroundColor: "#7f1d1d",
+        fontSize: 11,
+        fontWeight: "900",
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: 999,
+        overflow: "hidden",
+    },
+    checkoutBadge: {
+        color: "#dcfce7",
+        backgroundColor: "#166534",
+        fontSize: 11,
+        fontWeight: "900",
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: 999,
+        overflow: "hidden",
     },
 });

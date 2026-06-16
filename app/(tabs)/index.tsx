@@ -1,287 +1,142 @@
-import { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { PlayerScoreCard } from "@/src/components/PlayerScoreCard";
-import { ScoreInput } from "@/src/components/ScoreInput";
-import { TurnHistory } from "@/src/components/TurnHistory";
-import { applyTurn } from "@/src/lib/dartsScoring";
-import type { Player, Turn } from "@/src/types/darts";
-import { speakTurnResult } from "@/src/lib/voiceover";
-const STARTING_SCORE = 501;
+type GameCard = {
+  title: string;
+  description: string;
+  startingScore: number;
+  doubleOut: boolean;
+  enabled: boolean;
+};
+
+const x01Games: GameCard[] = [
+  {
+    title: "301",
+    description: "Fast x01 game. Good for short matches.",
+    startingScore: 301,
+    doubleOut: false,
+    enabled: true,
+  },
+  {
+    title: "301 Double Out",
+    description: "Fast x01 with double-out rules.",
+    startingScore: 301,
+    doubleOut: true,
+    enabled: true,
+  },
+  {
+    title: "501",
+    description: "Classic x01 scoring.",
+    startingScore: 501,
+    doubleOut: false,
+    enabled: true,
+  },
+  {
+    title: "501 Double Out",
+    description: "Classic darts format. Busts if you leave 1.",
+    startingScore: 501,
+    doubleOut: true,
+    enabled: true,
+  },
+  {
+    title: "701",
+    description: "Longer x01 game.",
+    startingScore: 701,
+    doubleOut: false,
+    enabled: true,
+  },
+  {
+    title: "701 Double Out",
+    description: "Longer x01 game with double-out rules.",
+    startingScore: 701,
+    doubleOut: true,
+    enabled: true,
+  },
+];
+
+const comingSoonGames = [
+  {
+    title: "Cricket",
+    description: "Close 15 to 20 and bull.",
+  },
+  {
+    title: "Around the Clock",
+    description: "Hit numbers in order from 1 to 20.",
+  },
+  {
+    title: "Bob's 27",
+    description: "Double practice game.",
+  },
+  {
+    title: "Shanghai",
+    description: "Score singles, doubles and triples.",
+  },
+];
 
 export default function HomeScreen() {
-  const [players, setPlayers] = useState<Player[]>([
-    {
-      id: "player-1",
-      name: "Player 1",
-      remaining: STARTING_SCORE,
-    },
-    {
-      id: "player-2",
-      name: "Player 2",
-      remaining: STARTING_SCORE,
-    },
-  ]);
-
-  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [scoreInput, setScoreInput] = useState("");
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [legFinished, setLegFinished] = useState(false);
-
-  const currentPlayer = players[currentPlayerIndex];
-
-  function getNextPlayerIndex() {
-    return currentPlayerIndex === players.length - 1
-      ? 0
-      : currentPlayerIndex + 1;
-  }
-
-  function resetLeg(startingPlayerIndex = 0) {
-    setPlayers((currentPlayers) =>
-      currentPlayers.map((player) => ({
-        ...player,
-        remaining: STARTING_SCORE,
-      }))
-    );
-
-    setCurrentPlayerIndex(startingPlayerIndex);
-    setScoreInput("");
-    setTurns([]);
-    setLegFinished(false);
-  }
-
-  function finishLeg(winnerName: string) {
-    setLegFinished(true);
-    setScoreInput("");
-
-    Alert.alert("Leg finished", `${winnerName} wins the leg.`, [
-      {
-        text: "Start new leg",
-        onPress: () => {
-          resetLeg(0);
-        },
+  function startX01Game(game: GameCard) {
+    router.push({
+      pathname: "/x01",
+      params: {
+        title: game.title,
+        startingScore: String(game.startingScore),
+        doubleOut: String(game.doubleOut),
       },
-    ]);
-  }
-
-  function submitScore() {
-    if (legFinished) {
-      Alert.alert("Leg already finished", "Start a new leg to continue.");
-      return;
-    }
-
-    const score = Number(scoreInput);
-
-    const firstResult = applyTurn(currentPlayer.remaining, score, {
-      requiresDoubleOut: true,
-      finishedOnDouble: false,
     });
-
-    if (firstResult.error) {
-      Alert.alert("Invalid score", firstResult.error);
-      return;
-    }
-
-    if (firstResult.needsDoubleConfirmation) {
-      Alert.alert(
-        "Double out?",
-        `Did ${currentPlayer.name} finish on a double?`,
-        [
-          {
-            text: "No, bust",
-            style: "cancel",
-            onPress: () => {
-              const turn: Turn = {
-                playerId: currentPlayer.id,
-                playerName: currentPlayer.name,
-                score,
-                remainingBefore: currentPlayer.remaining,
-                remainingAfter: currentPlayer.remaining,
-                bust: true,
-              };
-
-              speakTurnResult(
-                currentPlayer.name,
-                score,
-                currentPlayer.remaining,
-                true
-              );
-
-              setTurns((currentTurns) => [turn, ...currentTurns]);
-              setScoreInput("");
-              setCurrentPlayerIndex(getNextPlayerIndex());
-            },
-          },
-          {
-            text: "Yes, checkout",
-            onPress: () => {
-              const finalResult = applyTurn(currentPlayer.remaining, score, {
-                requiresDoubleOut: true,
-                finishedOnDouble: true,
-              });
-
-              const turn: Turn = {
-                playerId: currentPlayer.id,
-                playerName: currentPlayer.name,
-                score,
-                remainingBefore: currentPlayer.remaining,
-                remainingAfter: finalResult.remainingAfter,
-                bust: false,
-              };
-
-              speakTurnResult(
-                currentPlayer.name,
-                score,
-                currentPlayer.remaining,
-                true
-              );
-
-              setPlayers((currentPlayers) =>
-                currentPlayers.map((player) => {
-                  if (player.id !== currentPlayer.id) {
-                    return player;
-                  }
-
-                  return {
-                    ...player,
-                    remaining: finalResult.remainingAfter,
-                  };
-                })
-              );
-
-              setTurns((currentTurns) => [turn, ...currentTurns]);
-
-              finishLeg(currentPlayer.name);
-            },
-          },
-        ]
-      );
-
-      return;
-    }
-
-    const turn: Turn = {
-      playerId: currentPlayer.id,
-      playerName: currentPlayer.name,
-      score,
-      remainingBefore: currentPlayer.remaining,
-      remainingAfter: firstResult.remainingAfter,
-      bust: firstResult.bust,
-    };
-
-    speakTurnResult(
-      currentPlayer.name,
-      score,
-      firstResult.remainingAfter,
-      firstResult.bust
-    );
-
-    setPlayers((currentPlayers) =>
-      currentPlayers.map((player) => {
-        if (player.id !== currentPlayer.id) {
-          return player;
-        }
-
-        return {
-          ...player,
-          remaining: firstResult.remainingAfter,
-        };
-      })
-    );
-
-    setTurns((currentTurns) => [turn, ...currentTurns]);
-    setScoreInput("");
-
-    if (firstResult.remainingAfter === 0) {
-      finishLeg(currentPlayer.name);
-      return;
-    }
-
-    setCurrentPlayerIndex(getNextPlayerIndex());
-  }
-
-  function undoLastTurn() {
-    if (legFinished) {
-      return;
-    }
-
-    const [lastTurn, ...previousTurns] = turns;
-
-    if (!lastTurn) {
-      return;
-    }
-
-    setPlayers((currentPlayers) =>
-      currentPlayers.map((player) => {
-        if (player.id !== lastTurn.playerId) {
-          return player;
-        }
-
-        return {
-          ...player,
-          remaining: lastTurn.remainingBefore,
-        };
-      })
-    );
-
-    const previousPlayerIndex = players.findIndex(
-      (player) => player.id === lastTurn.playerId
-    );
-
-    if (previousPlayerIndex !== -1) {
-      setCurrentPlayerIndex(previousPlayerIndex);
-    }
-
-    setTurns(previousTurns);
   }
 
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>501 x01</Text>
-          <Text style={styles.title}>Darts Tracker</Text>
-        </View>
-
-        <Text style={styles.currentTurn}>
-          {legFinished ? "Leg finished" : currentPlayer.name}
+        <Text style={styles.eyebrow}>Choose game</Text>
+        <Text style={styles.title}>Darts Tracker</Text>
+        <Text style={styles.subtitle}>
+          Track your own matches with quick scoring.
         </Text>
       </View>
 
-      <View style={styles.playersGrid}>
-        {players.map((player, index) => (
-          <PlayerScoreCard
-            key={player.id}
-            player={player}
-            isActive={!legFinished && index === currentPlayerIndex}
-          />
-        ))}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Playable now</Text>
+
+        <View style={styles.gameGrid}>
+          {x01Games.map((game) => (
+            <Pressable
+              key={game.title}
+              style={styles.gameCard}
+              onPress={() => startX01Game(game)}
+            >
+              <View>
+                <Text style={styles.gameTitle}>{game.title}</Text>
+                <Text style={styles.gameDescription}>{game.description}</Text>
+              </View>
+
+              <Text style={styles.gameMeta}>
+                {game.doubleOut ? "Double out" : "Straight out"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
-      <ScoreInput
-        value={scoreInput}
-        onChangeValue={setScoreInput}
-        onSubmit={submitScore}
-      />
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Coming later</Text>
 
-      <View style={styles.actions}>
-        <Pressable
-          style={[styles.secondaryButton, legFinished && styles.disabledButton]}
-          onPress={undoLastTurn}
-          disabled={legFinished}
-        >
-          <Text style={styles.secondaryButtonText}>Undo</Text>
-        </Pressable>
+        <View style={styles.gameGrid}>
+          {comingSoonGames.map((game) => (
+            <View key={game.title} style={[styles.gameCard, styles.disabledCard]}>
+              <View>
+                <Text style={styles.disabledTitle}>{game.title}</Text>
+                <Text style={styles.disabledDescription}>
+                  {game.description}
+                </Text>
+              </View>
 
-        <Pressable style={styles.secondaryButton} onPress={() => resetLeg(0)}>
-          <Text style={styles.secondaryButtonText}>
-            {legFinished ? "New leg" : "Reset"}
-          </Text>
-        </Pressable>
+              <Text style={styles.disabledMeta}>Coming soon</Text>
+            </View>
+          ))}
+        </View>
       </View>
-
-      <TurnHistory turns={turns} />
     </SafeAreaView>
   );
 }
@@ -292,58 +147,101 @@ const styles = StyleSheet.create({
     backgroundColor: "#020617",
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 10,
   },
   header: {
-    marginBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
+    marginBottom: 22,
   },
   eyebrow: {
     color: "#f97316",
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 1,
+    marginBottom: 4,
   },
   title: {
     color: "#ffffff",
-    fontSize: 26,
+    fontSize: 34,
     fontWeight: "900",
-    marginTop: 2,
   },
-  currentTurn: {
-    color: "#fed7aa",
-    fontSize: 14,
+  subtitle: {
+    color: "#94a3b8",
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 6,
+    lineHeight: 21,
+  },
+  section: {
+    marginBottom: 22,
+  },
+  sectionTitle: {
+    color: "#ffffff",
+    fontSize: 18,
     fontWeight: "900",
-    marginBottom: 3,
+    marginBottom: 10,
   },
-  playersGrid: {
-    flexDirection: "row",
+  gameGrid: {
     gap: 10,
-    marginBottom: 12,
   },
-  actions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 10,
-  },
-  secondaryButton: {
-    flex: 1,
+  gameCard: {
     backgroundColor: "#111827",
-    borderRadius: 14,
-    paddingVertical: 11,
-    alignItems: "center",
     borderWidth: 1,
     borderColor: "#1f2937",
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 14,
   },
-  disabledButton: {
-    opacity: 0.45,
-  },
-  secondaryButtonText: {
+  gameTitle: {
     color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "800",
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  gameDescription: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+    maxWidth: 220,
+  },
+  gameMeta: {
+    color: "#fed7aa",
+    fontSize: 12,
+    fontWeight: "900",
+    alignSelf: "flex-start",
+    backgroundColor: "#1f2937",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  disabledCard: {
+    opacity: 0.48,
+  },
+  disabledTitle: {
+    color: "#cbd5e1",
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  disabledDescription: {
+    color: "#64748b",
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+    maxWidth: 220,
+  },
+  disabledMeta: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "900",
+    alignSelf: "flex-start",
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    overflow: "hidden",
   },
 });

@@ -11,4 +11,11 @@ export type Turn = {
   remainingBefore: number;
   remainingAfter: number;
   bust: boolean;
+  checkout: boolean;
+};
+
+export type X01GameConfig = {
+  title: string;
+  startingScore: number;
+  doubleOut: boolean;
 };
