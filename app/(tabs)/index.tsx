@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type GameCard = {
@@ -87,69 +87,99 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Choose game</Text>
-        <Text style={styles.title}>Darts Tracker</Text>
-        <Text style={styles.subtitle}>
-          Track your own matches with quick scoring.
-        </Text>
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={styles.eyebrow}>Choose game</Text>
+            <Text style={styles.title}>Darts Tracker</Text>
+            <Text style={styles.subtitle}>
+              Track your own matches with quick scoring.
+            </Text>
+          </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Playable now</Text>
-
-        <View style={styles.gameGrid}>
-          {x01Games.map((game) => (
-            <Pressable
-              key={game.title}
-              style={styles.gameCard}
-              onPress={() => startX01Game(game)}
-            >
-              <View>
-                <Text style={styles.gameTitle}>{game.title}</Text>
-                <Text style={styles.gameDescription}>{game.description}</Text>
-              </View>
-
-              <Text style={styles.gameMeta}>
-                {game.doubleOut ? "Double out" : "Straight out"}
-              </Text>
-            </Pressable>
-          ))}
+          <Pressable
+            style={styles.accountButton}
+            onPress={() => router.push("/login")}
+          >
+            <Text style={styles.accountButtonText}>Account</Text>
+          </Pressable>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Coming later</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Playable now</Text>
 
-        <View style={styles.gameGrid}>
-          {comingSoonGames.map((game) => (
-            <View key={game.title} style={[styles.gameCard, styles.disabledCard]}>
-              <View>
-                <Text style={styles.disabledTitle}>{game.title}</Text>
-                <Text style={styles.disabledDescription}>
-                  {game.description}
+          <View style={styles.gameGrid}>
+            {x01Games.map((game) => (
+              <Pressable
+                key={game.title}
+                style={styles.gameCard}
+                onPress={() => startX01Game(game)}
+              >
+                <View style={styles.gameText}>
+                  <Text style={styles.gameTitle}>{game.title}</Text>
+                  <Text style={styles.gameDescription}>
+                    {game.description}
+                  </Text>
+                </View>
+
+                <Text style={styles.gameMeta}>
+                  {game.doubleOut ? "Double out" : "Straight out"}
                 </Text>
-              </View>
-
-              <Text style={styles.disabledMeta}>Coming soon</Text>
-            </View>
-          ))}
+              </Pressable>
+            ))}
+          </View>
         </View>
-      </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Coming later</Text>
+
+          <View style={styles.gameGrid}>
+            {comingSoonGames.map((game) => (
+              <View
+                key={game.title}
+                style={[styles.gameCard, styles.disabledCard]}
+              >
+                <View style={styles.gameText}>
+                  <Text style={styles.disabledTitle}>{game.title}</Text>
+                  <Text style={styles.disabledDescription}>
+                    {game.description}
+                  </Text>
+                </View>
+
+                <Text style={styles.disabledMeta}>Soon</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  safeArea: {
     flex: 1,
     backgroundColor: "#020617",
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
     paddingHorizontal: 16,
     paddingTop: 8,
+    paddingBottom: 28,
   },
   header: {
     marginBottom: 22,
+    gap: 14,
+  },
+  headerText: {
+    width: "100%",
   },
   eyebrow: {
     color: "#f97316",
@@ -171,6 +201,20 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 21,
   },
+  accountButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  accountButtonText: {
+    color: "#fed7aa",
+    fontSize: 13,
+    fontWeight: "900",
+  },
   section: {
     marginBottom: 22,
   },
@@ -184,14 +228,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   gameCard: {
+    width: "100%",
     backgroundColor: "#111827",
     borderWidth: 1,
     borderColor: "#1f2937",
     borderRadius: 18,
     padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 14,
+    gap: 12,
+  },
+  gameText: {
+    width: "100%",
   },
   gameTitle: {
     color: "#ffffff",
@@ -204,13 +250,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 18,
-    maxWidth: 220,
   },
   gameMeta: {
+    alignSelf: "flex-start",
     color: "#fed7aa",
     fontSize: 12,
     fontWeight: "900",
-    alignSelf: "flex-start",
     backgroundColor: "#1f2937",
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -231,13 +276,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 18,
-    maxWidth: 220,
   },
   disabledMeta: {
+    alignSelf: "flex-start",
     color: "#94a3b8",
     fontSize: 12,
     fontWeight: "900",
-    alignSelf: "flex-start",
     backgroundColor: "#1e293b",
     paddingHorizontal: 10,
     paddingVertical: 6,
