@@ -205,11 +205,7 @@ export default function HomeScreen() {
 
           <View style={styles.gameGrid}>
             {x01Games.map((game) => (
-              <Pressable
-                key={game.title}
-                style={styles.gameCard}
-                onPress={() => startX01Game(game)}
-              >
+              <View key={game.title} style={styles.gameCard}>
                 <View style={styles.gameText}>
                   <Text style={styles.gameTitle}>{game.title}</Text>
                   <Text style={styles.gameDescription}>{game.description}</Text>
@@ -218,7 +214,34 @@ export default function HomeScreen() {
                 <Text style={styles.gameMeta}>
                   {game.doubleOut ? "Double out" : "Straight out"}
                 </Text>
-              </Pressable>
+
+                <View style={styles.gameActions}>
+                  <Pressable
+                    style={styles.playButton}
+                    onPress={() => startX01Game(game)}
+                  >
+                    <Text style={styles.playButtonText}>Play local</Text>
+                  </Pressable>
+
+                  {isLoggedIn && (
+                    <Pressable
+                      style={styles.inviteButton}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/invite-match",
+                          params: {
+                            title: game.title,
+                            startingScore: String(game.startingScore),
+                            doubleOut: String(game.doubleOut),
+                          },
+                        })
+                      }
+                    >
+                      <Text style={styles.inviteButtonText}>Invite</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
             ))}
           </View>
         </View>
@@ -420,6 +443,35 @@ const styles = StyleSheet.create({
   },
   friendsButtonText: {
     color: "#111827",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  gameActions: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  playButton: {
+    backgroundColor: "#f97316",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  playButtonText: {
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  inviteButton: {
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  inviteButtonText: {
+    color: "#fed7aa",
     fontSize: 13,
     fontWeight: "900",
   },

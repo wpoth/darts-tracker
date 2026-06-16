@@ -16,21 +16,25 @@ export default function X01Screen() {
         title?: string;
         startingScore?: string;
         doubleOut?: string;
+        playerOneName?: string;
+        playerTwoName?: string;
     }>();
 
     const title = params.title ?? "501";
     const startingScore = Number(params.startingScore ?? 501);
     const doubleOut = params.doubleOut === "true";
+    const playerOneName = params.playerOneName ?? "Player 1";
+    const playerTwoName = params.playerTwoName ?? "Player 2";
 
     const [players, setPlayers] = useState<Player[]>([
         {
             id: "player-1",
-            name: "Player 1",
+            name: playerOneName,
             remaining: startingScore,
         },
         {
             id: "player-2",
-            name: "Player 2",
+            name: playerTwoName,
             remaining: startingScore,
         },
     ]);

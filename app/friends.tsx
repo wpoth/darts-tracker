@@ -20,6 +20,11 @@ import {
     type FriendProfile,
 } from "@/src/lib/friendsDatabase";
 
+import {
+    getIncomingMatchInvites,
+    respondToMatchInvite,
+    type MatchInvite,
+} from "@/src/lib/matchInvitesDatabase";
 type IncomingRequest = {
     id: string;
     sender_id: string;
@@ -31,6 +36,7 @@ type IncomingRequest = {
 };
 
 export default function FriendsScreen() {
+    const [matchInvites, setMatchInvites] = useState<MatchInvite[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<FriendProfile[]>([]);
     const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>(
@@ -50,6 +56,7 @@ export default function FriendsScreen() {
 
         const incomingResult = await getIncomingFriendRequests();
         const friendsResult = await getFriends();
+        const matchInvitesResult = await getIncomingMatchInvites();
 
         if (incomingResult.error) {
             Alert.alert("Requests failed", incomingResult.error);
@@ -61,6 +68,12 @@ export default function FriendsScreen() {
             Alert.alert("Friends failed", friendsResult.error);
         } else {
             setFriends(friendsResult.friends);
+        }
+
+        if (matchInvitesResult.error) {
+            Alert.alert("Match invites failed", matchInvitesResult.error);
+        } else {
+            setMatchInvites(matchInvitesResult.invites);
         }
 
         setIsLoading(false);
@@ -95,6 +108,35 @@ export default function FriendsScreen() {
         Alert.alert("Request sent", `Friend request sent to @${profile.username}.`);
         setSearchQuery("");
         setSearchResults([]);
+    }
+
+    async function handleRespondToMatchInvite(
+        inviteId: string,
+        status: "accepted" | "declined"
+    ) {
+        const { invite, error } = await respondToMatchInvite(inviteId, status);
+
+        if (error) {
+            Alert.alert("Invite failed", error);
+            return;
+        }
+
+        if (status === "accepted" && invite) {
+            router.push({
+                pathname: "/x01",
+                params: {
+                    title: invite.game_title,
+                    startingScore: String(invite.starting_score),
+                    doubleOut: String(invite.double_out),
+                    playerOneName: invite.sender?.username ?? "Player 1",
+                    playerTwoName: "You",
+                },
+            });
+
+            return;
+        }
+
+        await loadFriendsData();
     }
 
     async function handleRespondToRequest(
@@ -161,6 +203,50 @@ export default function FriendsScreen() {
                                     >
                                         <Text style={styles.smallButtonText}>Add</Text>
                                     </Pressable>
+                                </View>
+                            ))
+                        )}
+                    </View>
+                </View>
+
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Match invites</Text>
+
+                    <View style={styles.list}>
+                        {matchInvites.length === 0 ? (
+                            <Text style={styles.emptyText}>No match invites.</Text>
+                        ) : (
+                            matchInvites.map((invite) => (
+                                <View key={invite.id} style={styles.requestCard}>
+                                    <View style={styles.rowText}>
+                                        <Text style={styles.primaryText}>
+                                            @{invite.sender?.username ?? "Unknown user"}
+                                        </Text>
+                                        <Text style={styles.secondaryText}>
+                                            Invited you to {invite.game_title} ·{" "}
+                                            {invite.double_out ? "Double out" : "Straight out"}
+                                        </Text>
+                                    </View>
+
+                                    <View style={styles.requestActions}>
+                                        <Pressable
+                                            style={styles.acceptButton}
+                                            onPress={() =>
+                                                handleRespondToMatchInvite(invite.id, "accepted")
+                                            }
+                                        >
+                                            <Text style={styles.acceptButtonText}>Accept</Text>
+                                        </Pressable>
+
+                                        <Pressable
+                                            style={styles.declineButton}
+                                            onPress={() =>
+                                                handleRespondToMatchInvite(invite.id, "declined")
+                                            }
+                                        >
+                                            <Text style={styles.declineButtonText}>Decline</Text>
+                                        </Pressable>
+                                    </View>
                                 </View>
                             ))
                         )}
