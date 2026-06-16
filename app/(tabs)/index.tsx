@@ -1,6 +1,10 @@
-import { router } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { getCurrentUserProfile, type UserProfile } from "@/src/lib/profileDatabase";
+import { supabase } from "@/src/lib/supabase";
 
 type GameCard = {
   title: string;
@@ -75,6 +79,63 @@ const comingSoonGames = [
 ];
 
 export default function HomeScreen() {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAccountLoading, setIsAccountLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkAccount();
+    }, [])
+  );
+
+  async function checkAccount() {
+    setIsAccountLoading(true);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setIsLoggedIn(false);
+      setProfile(null);
+      setIsAccountLoading(false);
+      return;
+    }
+
+    setIsLoggedIn(true);
+
+    const { profile: currentProfile } = await getCurrentUserProfile();
+
+    setProfile(currentProfile);
+    setIsAccountLoading(false);
+  }
+
+  async function signOut() {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      Alert.alert("Logout failed", error.message);
+      return;
+    }
+
+    setIsLoggedIn(false);
+    setProfile(null);
+  }
+
+  function openAccountScreen() {
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
+
+    if (!profile) {
+      router.push("/profile-setup");
+      return;
+    }
+  }
+
   function startX01Game(game: GameCard) {
     router.push({
       pathname: "/x01",
@@ -85,6 +146,14 @@ export default function HomeScreen() {
       },
     });
   }
+
+  const accountLabel = isAccountLoading
+    ? "Loading..."
+    : profile
+      ? `@${profile.username}`
+      : isLoggedIn
+        ? "Set username"
+        : "Account";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -102,13 +171,25 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          <Pressable
-            style={styles.accountButton}
-            onPress={() => router.push("/login")}
-          >
-            <Text style={styles.accountButtonText}>Account</Text>
-          </Pressable>
+          <View style={styles.accountActions}>
+            <Pressable style={styles.accountButton} onPress={openAccountScreen}>
+              <Text style={styles.accountButtonText}>{accountLabel}</Text>
+            </Pressable>
+
+            {isLoggedIn && (
+              <Pressable style={styles.logoutButton} onPress={signOut}>
+                <Text style={styles.logoutButtonText}>Log out</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
+
+        {profile && (
+          <View style={styles.profileCard}>
+            <Text style={styles.profileLabel}>Signed in as</Text>
+            <Text style={styles.profileName}>{profile.username}</Text>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Playable now</Text>
@@ -122,9 +203,7 @@ export default function HomeScreen() {
               >
                 <View style={styles.gameText}>
                   <Text style={styles.gameTitle}>{game.title}</Text>
-                  <Text style={styles.gameDescription}>
-                    {game.description}
-                  </Text>
+                  <Text style={styles.gameDescription}>{game.description}</Text>
                 </View>
 
                 <Text style={styles.gameMeta}>
@@ -140,15 +219,10 @@ export default function HomeScreen() {
 
           <View style={styles.gameGrid}>
             {comingSoonGames.map((game) => (
-              <View
-                key={game.title}
-                style={[styles.gameCard, styles.disabledCard]}
-              >
+              <View key={game.title} style={[styles.gameCard, styles.disabledCard]}>
                 <View style={styles.gameText}>
                   <Text style={styles.disabledTitle}>{game.title}</Text>
-                  <Text style={styles.disabledDescription}>
-                    {game.description}
-                  </Text>
+                  <Text style={styles.disabledDescription}>{game.description}</Text>
                 </View>
 
                 <Text style={styles.disabledMeta}>Soon</Text>
@@ -175,7 +249,7 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   header: {
-    marginBottom: 22,
+    marginBottom: 14,
     gap: 14,
   },
   headerText: {
@@ -201,6 +275,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 21,
   },
+  accountActions: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
   accountButton: {
     alignSelf: "flex-start",
     backgroundColor: "#111827",
@@ -213,6 +292,41 @@ const styles = StyleSheet.create({
   accountButtonText: {
     color: "#fed7aa",
     fontSize: 13,
+    fontWeight: "900",
+  },
+  logoutButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  logoutButtonText: {
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  profileCard: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 20,
+  },
+  profileLabel: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  profileName: {
+    color: "#ffffff",
+    fontSize: 22,
     fontWeight: "900",
   },
   section: {

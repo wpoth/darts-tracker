@@ -30,6 +30,19 @@ export default function LoginScreen() {
             return;
         }
 
+        const { getCurrentUserProfile } = await import("@/src/lib/profileDatabase");
+        const { profile, error: profileError } = await getCurrentUserProfile();
+
+        if (profileError) {
+            Alert.alert("Profile check failed", profileError);
+            return;
+        }
+
+        if (!profile) {
+            router.replace("/profile-setup");
+            return;
+        }
+
         router.replace("/");
     }
 
