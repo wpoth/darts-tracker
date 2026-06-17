@@ -16,6 +16,44 @@ export type FriendRequest = {
     updated_at: string;
 };
 
+export type IncomingFriendRequest = FriendRequest & {
+    sender: FriendProfile | null;
+};
+
+type SupabaseJoinedProfile = FriendProfile | FriendProfile[] | null;
+
+type RawIncomingFriendRequest = FriendRequest & {
+    sender?: SupabaseJoinedProfile;
+};
+
+type RawFriendRequestWithProfiles = FriendRequest & {
+    sender?: SupabaseJoinedProfile;
+    receiver?: SupabaseJoinedProfile;
+};
+
+function normalizeJoinedProfile(
+    profile: SupabaseJoinedProfile | undefined
+): FriendProfile | null {
+    if (!profile) {
+        return null;
+    }
+
+    if (Array.isArray(profile)) {
+        return profile[0] ?? null;
+    }
+
+    return profile;
+}
+
+function normalizeIncomingFriendRequest(
+    request: RawIncomingFriendRequest
+): IncomingFriendRequest {
+    return {
+        ...request,
+        sender: normalizeJoinedProfile(request.sender),
+    };
+}
+
 export async function searchProfilesByUsername(query: string) {
     const cleanQuery = query.trim();
 
@@ -105,7 +143,7 @@ export async function getIncomingFriendRequests() {
 
     if (!user) {
         return {
-            requests: [],
+            requests: [] as IncomingFriendRequest[],
             error: "Not logged in.",
         };
     }
@@ -132,13 +170,15 @@ export async function getIncomingFriendRequests() {
 
     if (error) {
         return {
-            requests: [],
+            requests: [] as IncomingFriendRequest[],
             error: error.message,
         };
     }
 
     return {
-        requests: data,
+        requests: ((data ?? []) as RawIncomingFriendRequest[]).map(
+            normalizeIncomingFriendRequest
+        ),
         error: null,
     };
 }
@@ -179,6 +219,9 @@ export async function getFriends() {
       id,
       sender_id,
       receiver_id,
+      status,
+      created_at,
+      updated_at,
       sender:profiles!friend_requests_sender_id_fkey (
         id,
         username
@@ -199,15 +242,15 @@ export async function getFriends() {
         };
     }
 
-    const friends = data
-        .map((request: any) => {
+    const friends = ((data ?? []) as RawFriendRequestWithProfiles[])
+        .map((request) => {
             if (request.sender_id === user.id) {
-                return request.receiver;
+                return normalizeJoinedProfile(request.receiver);
             }
 
-            return request.sender;
+            return normalizeJoinedProfile(request.sender);
         })
-        .filter(Boolean) as FriendProfile[];
+        .filter((friend): friend is FriendProfile => Boolean(friend));
 
     return {
         friends,

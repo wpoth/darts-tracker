@@ -11,10 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { CheckoutSuggestions } from "@/src/components/CheckoutSuggestions";
-import { speakTurnResult } from "@/src/lib/voiceover";
-
 import { ScoreInput } from "@/src/components/ScoreInput";
-import { supabase } from "@/src/lib/supabase";
 import {
     getMatchRoomState,
     submitMatchRoomScore,
@@ -22,6 +19,8 @@ import {
     type MatchRoomPlayer,
     type MatchRoomTurn,
 } from "@/src/lib/matchRoomsDatabase";
+import { supabase } from "@/src/lib/supabase";
+import { speakTurnResult } from "@/src/lib/voiceover";
 
 export default function MatchRoomScreen() {
     const params = useLocalSearchParams<{ id?: string }>();
@@ -81,7 +80,7 @@ export default function MatchRoomScreen() {
                     filter: `match_room_id=eq.${matchRoomId}`,
                 },
                 () => {
-                    loadRoomState();
+                    loadRoomState({ speakLatestTurn: true });
                 }
             )
             .subscribe();
@@ -175,30 +174,25 @@ export default function MatchRoomScreen() {
             return;
         }
 
-        const remainingBeforeSubmit = playerBeforeSubmit.remaining;
-
-        const { error } = await submitMatchRoomScore(matchRoomId, score);
+        const { turn, error } = await submitMatchRoomScore(matchRoomId, score);
 
         if (error) {
             Alert.alert("Score failed", error);
             return;
         }
 
-        const remainingAfterSubmit =
-            score > remainingBeforeSubmit || (room.double_out && remainingBeforeSubmit - score === 1)
-                ? remainingBeforeSubmit
-                : remainingBeforeSubmit - score;
+        if (turn) {
+            lastSubmittedTurnIdRef.current = turn.id;
+            lastSpokenTurnIdRef.current = turn.id;
 
-        const bust = remainingAfterSubmit === remainingBeforeSubmit && score !== 0;
-        const checkout = remainingAfterSubmit === 0;
-
-        speakTurnResult(
-            playerBeforeSubmit.username,
-            score,
-            remainingAfterSubmit,
-            bust,
-            checkout
-        );
+            speakTurnResult(
+                turn.username,
+                turn.score,
+                turn.remaining_after,
+                turn.bust,
+                turn.checkout
+            );
+        }
 
         setScoreInput("");
         await loadRoomState();
@@ -301,20 +295,34 @@ export default function MatchRoomScreen() {
                     {turns.length === 0 ? (
                         <Text style={styles.emptyText}>No turns yet.</Text>
                     ) : (
-                        turns.slice(0, 4).map((turn) => (
+                        turns.slice(0, 6).map((turn) => (
                             <View key={turn.id} style={styles.turnRow}>
-                                <Text style={styles.turnText}>
-                                    @{turn.username}:{" "}
-                                    {turn.checkout
-                                        ? `Checkout ${turn.score}`
-                                        : turn.bust
-                                            ? "Bust"
-                                            : turn.score}
-                                </Text>
+                                <View style={styles.turnMain}>
+                                    <Text style={styles.turnText}>
+                                        @{turn.username}:{" "}
+                                        {turn.checkout
+                                            ? `Checkout ${turn.score}`
+                                            : turn.bust
+                                                ? "Bust"
+                                                : turn.score}
+                                    </Text>
 
-                                <Text style={styles.turnSubText}>
-                                    {turn.remaining_before} → {turn.remaining_after}
-                                </Text>
+                                    <Text style={styles.turnSubText}>
+                                        {turn.remaining_before} → {turn.remaining_after}
+                                    </Text>
+                                </View>
+
+                                {turn.checkout && (
+                                    <View style={styles.checkoutBadge}>
+                                        <Text style={styles.checkoutBadgeText}>Win</Text>
+                                    </View>
+                                )}
+
+                                {turn.bust && (
+                                    <View style={styles.bustBadge}>
+                                        <Text style={styles.bustBadgeText}>Bust</Text>
+                                    </View>
+                                )}
                             </View>
                         ))
                     )}
@@ -325,166 +333,191 @@ export default function MatchRoomScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#020617",
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 28,
-  },
-  header: {
-    marginBottom: 10,
-  },
-  backText: {
-    color: "#94a3b8",
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 12,
-  },
-  eyebrow: {
-    color: "#f97316",
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  title: {
-    color: "#ffffff",
-    fontSize: 26,
-    fontWeight: "900",
-    marginTop: 2,
-  },
-  subtitle: {
-    color: "#94a3b8",
-    fontSize: 14,
-    fontWeight: "700",
-    marginTop: 4,
-  },
-  playersGrid: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 10,
-  },
-  playerCard: {
-    flex: 1,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    borderRadius: 16,
-    padding: 12,
-    minWidth: 0,
-  },
-  activePlayerCard: {
-    borderColor: "#f97316",
-    backgroundColor: "#1f2937",
-  },
-  playerName: {
-    color: "#94a3b8",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  playerScore: {
-    color: "#ffffff",
-    fontSize: 36,
-    fontWeight: "900",
-    marginTop: 2,
-  },
-  activeText: {
-    color: "#f97316",
-  },
-  turnBadge: {
-    alignSelf: "flex-start",
-    color: "#111827",
-    backgroundColor: "#f97316",
-    fontSize: 11,
-    fontWeight: "900",
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 999,
-    marginTop: 6,
-    overflow: "hidden",
-  },
-  turnStatus: {
-    color: "#fed7aa",
-    fontSize: 14,
-    fontWeight: "900",
-    marginBottom: 8,
-  },
-  finishedCard: {
-    backgroundColor: "#0f172a",
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 16,
-    padding: 14,
-  },
-  finishedTitle: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  finishedText: {
-    color: "#fed7aa",
-    fontSize: 14,
-    fontWeight: "800",
-    marginTop: 4,
-  },
-  waitingCard: {
-    backgroundColor: "#0f172a",
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 16,
-    padding: 14,
-  },
-  waitingTitle: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  waitingText: {
-    color: "#94a3b8",
-    fontSize: 14,
-    fontWeight: "700",
-    marginTop: 4,
-  },
-  history: {
-    marginTop: 12,
-  },
-  historyTitle: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "900",
-    marginBottom: 8,
-  },
-  emptyText: {
-    color: "#64748b",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  turnRow: {
-    backgroundColor: "#0f172a",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginBottom: 6,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-  },
-  turnText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "800",
-    flex: 1,
-  },
-  turnSubText: {
-    color: "#94a3b8",
-    fontSize: 13,
-    fontWeight: "700",
-  },
+    safeArea: {
+        flex: 1,
+        backgroundColor: "#020617",
+    },
+    scroll: {
+        flex: 1,
+    },
+    content: {
+        paddingHorizontal: 14,
+        paddingTop: 8,
+        paddingBottom: 28,
+    },
+    header: {
+        marginBottom: 10,
+    },
+    backText: {
+        color: "#94a3b8",
+        fontSize: 14,
+        fontWeight: "800",
+        marginBottom: 12,
+    },
+    eyebrow: {
+        color: "#f97316",
+        fontSize: 12,
+        fontWeight: "900",
+        textTransform: "uppercase",
+        letterSpacing: 1,
+    },
+    title: {
+        color: "#ffffff",
+        fontSize: 30,
+        fontWeight: "900",
+        marginTop: 2,
+    },
+    subtitle: {
+        color: "#94a3b8",
+        fontSize: 14,
+        fontWeight: "700",
+        marginTop: 4,
+        lineHeight: 20,
+    },
+    playersGrid: {
+        flexDirection: "row",
+        gap: 8,
+        marginBottom: 10,
+    },
+    playerCard: {
+        flex: 1,
+        backgroundColor: "#111827",
+        borderWidth: 1,
+        borderColor: "#1f2937",
+        borderRadius: 16,
+        padding: 12,
+        minWidth: 0,
+    },
+    activePlayerCard: {
+        borderColor: "#f97316",
+        backgroundColor: "#1f2937",
+    },
+    playerName: {
+        color: "#94a3b8",
+        fontSize: 12,
+        fontWeight: "900",
+    },
+    playerScore: {
+        color: "#ffffff",
+        fontSize: 36,
+        fontWeight: "900",
+        marginTop: 2,
+    },
+    activeText: {
+        color: "#f97316",
+    },
+    turnBadge: {
+        alignSelf: "flex-start",
+        color: "#111827",
+        backgroundColor: "#f97316",
+        fontSize: 11,
+        fontWeight: "900",
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: 999,
+        marginTop: 6,
+        overflow: "hidden",
+    },
+    turnStatus: {
+        color: "#fed7aa",
+        fontSize: 14,
+        fontWeight: "900",
+        marginBottom: 8,
+    },
+    finishedCard: {
+        backgroundColor: "#0f172a",
+        borderWidth: 1,
+        borderColor: "#334155",
+        borderRadius: 16,
+        padding: 14,
+    },
+    finishedTitle: {
+        color: "#ffffff",
+        fontSize: 18,
+        fontWeight: "900",
+    },
+    finishedText: {
+        color: "#fed7aa",
+        fontSize: 14,
+        fontWeight: "800",
+        marginTop: 4,
+    },
+    waitingCard: {
+        backgroundColor: "#0f172a",
+        borderWidth: 1,
+        borderColor: "#334155",
+        borderRadius: 16,
+        padding: 14,
+    },
+    waitingTitle: {
+        color: "#ffffff",
+        fontSize: 18,
+        fontWeight: "900",
+    },
+    waitingText: {
+        color: "#94a3b8",
+        fontSize: 14,
+        fontWeight: "700",
+        marginTop: 4,
+    },
+    history: {
+        marginTop: 12,
+    },
+    historyTitle: {
+        color: "#ffffff",
+        fontSize: 16,
+        fontWeight: "900",
+        marginBottom: 8,
+    },
+    emptyText: {
+        color: "#64748b",
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    turnRow: {
+        backgroundColor: "#0f172a",
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        marginBottom: 6,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    turnMain: {
+        flex: 1,
+    },
+    turnText: {
+        color: "#ffffff",
+        fontSize: 14,
+        fontWeight: "800",
+    },
+    turnSubText: {
+        color: "#94a3b8",
+        fontSize: 13,
+        fontWeight: "700",
+        marginTop: 2,
+    },
+    checkoutBadge: {
+        backgroundColor: "#f97316",
+        borderRadius: 999,
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+    },
+    checkoutBadgeText: {
+        color: "#111827",
+        fontSize: 11,
+        fontWeight: "900",
+    },
+    bustBadge: {
+        backgroundColor: "#7f1d1d",
+        borderRadius: 999,
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+    },
+    bustBadgeText: {
+        color: "#fecaca",
+        fontSize: 11,
+        fontWeight: "900",
+    },
 });

@@ -99,6 +99,7 @@ export async function submitMatchRoomScore(matchRoomId: string, score: number) {
 
     if (!user) {
         return {
+            turn: null,
             error: "Not logged in.",
         };
     }
@@ -107,18 +108,21 @@ export async function submitMatchRoomScore(matchRoomId: string, score: number) {
 
     if (state.error || !state.room) {
         return {
+            turn: null,
             error: state.error ?? "Match room not found.",
         };
     }
 
     if (state.room.status === "finished") {
         return {
+            turn: null,
             error: "This match is already finished.",
         };
     }
 
     if (state.room.current_player_id !== user.id) {
         return {
+            turn: null,
             error: "It is not your turn.",
         };
     }
@@ -129,6 +133,7 @@ export async function submitMatchRoomScore(matchRoomId: string, score: number) {
 
     if (!currentPlayer) {
         return {
+            turn: null,
             error: "You are not a player in this match.",
         };
     }
@@ -143,23 +148,29 @@ export async function submitMatchRoomScore(matchRoomId: string, score: number) {
 
     if (result.error) {
         return {
+            turn: null,
             error: result.error,
         };
     }
 
-    const { error: turnError } = await supabase.from("match_room_turns").insert({
-        match_room_id: matchRoomId,
-        profile_id: user.id,
-        username: currentPlayer.username,
-        score,
-        remaining_before: currentPlayer.remaining,
-        remaining_after: result.remainingAfter,
-        bust: result.bust,
-        checkout: result.checkout,
-    });
+    const { data: insertedTurn, error: turnError } = await supabase
+        .from("match_room_turns")
+        .insert({
+            match_room_id: matchRoomId,
+            profile_id: user.id,
+            username: currentPlayer.username,
+            score,
+            remaining_before: currentPlayer.remaining,
+            remaining_after: result.remainingAfter,
+            bust: result.bust,
+            checkout: result.checkout,
+        })
+        .select("*")
+        .single();
 
     if (turnError) {
         return {
+            turn: null,
             error: turnError.message,
         };
     }
@@ -174,6 +185,7 @@ export async function submitMatchRoomScore(matchRoomId: string, score: number) {
 
         if (playerUpdateError) {
             return {
+                turn: null,
                 error: playerUpdateError.message,
             };
         }
@@ -193,11 +205,13 @@ export async function submitMatchRoomScore(matchRoomId: string, score: number) {
 
     if (roomUpdateError) {
         return {
+            turn: null,
             error: roomUpdateError.message,
         };
     }
 
     return {
+        turn: insertedTurn as MatchRoomTurn,
         error: null,
     };
 }

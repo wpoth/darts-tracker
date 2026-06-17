@@ -20,9 +20,12 @@ export default function SelectFriendMatchScreen() {
     const params = useLocalSearchParams<{
         title?: string;
         startingScore?: string;
+        doubleIn?: string;
         doubleOut?: string;
+        playerMode?: string;
     }>();
 
+    const doubleIn = params.doubleIn ?? "false";
     const title = params.title ?? "501";
     const startingScore = Number(params.startingScore ?? 501);
     const doubleOut = params.doubleOut === "true";
@@ -67,7 +70,9 @@ export default function SelectFriendMatchScreen() {
             params: {
                 title,
                 startingScore: String(startingScore),
+                doubleIn,
                 doubleOut: String(doubleOut),
+                playerMode: "local-friend",
                 playerOneName: profile?.username ?? "Player 1",
                 playerTwoName: friend.username,
             },
@@ -98,7 +103,8 @@ export default function SelectFriendMatchScreen() {
                     <Text style={styles.matchLabel}>Match setup</Text>
                     <Text style={styles.matchTitle}>{title}</Text>
                     <Text style={styles.matchMeta}>
-                        {startingScore} · {doubleOut ? "Double out" : "Straight out"}
+                        {startingScore} · {doubleIn === "true" ? "Double in · " : ""}
+                        {doubleOut ? "Double out" : "Straight out"}
                     </Text>
                 </View>
 

@@ -1,87 +1,59 @@
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { getCurrentUserProfile, type UserProfile } from "@/src/lib/profileDatabase";
+import {
+  getCurrentUserProfile,
+  type UserProfile,
+} from "@/src/lib/profileDatabase";
 import { supabase } from "@/src/lib/supabase";
 
-type GameCard = {
+type GameCategory = {
   title: string;
   description: string;
-  startingScore: number;
-  doubleOut: boolean;
-  enabled: boolean;
+  status: "playable" | "coming-soon";
+  route?: string;
 };
 
-const x01Games: GameCard[] = [
+const gameCategories: GameCategory[] = [
   {
-    title: "301",
-    description: "Fast x01 game. Good for short matches.",
-    startingScore: 301,
-    doubleOut: false,
-    enabled: true,
+    title: "Classic X01",
+    description: "Play 301, 501, or 701 with custom rules and player setup.",
+    status: "playable",
+    route: "/classic",
   },
-  {
-    title: "301 Double Out",
-    description: "Fast x01 with double-out rules.",
-    startingScore: 301,
-    doubleOut: true,
-    enabled: true,
-  },
-  {
-    title: "501",
-    description: "Classic x01 scoring.",
-    startingScore: 501,
-    doubleOut: false,
-    enabled: true,
-  },
-  {
-    title: "501 Double Out",
-    description: "Classic darts format. Busts if you leave 1.",
-    startingScore: 501,
-    doubleOut: true,
-    enabled: true,
-  },
-  {
-    title: "701",
-    description: "Longer x01 game.",
-    startingScore: 701,
-    doubleOut: false,
-    enabled: true,
-  },
-  {
-    title: "701 Double Out",
-    description: "Longer x01 game with double-out rules.",
-    startingScore: 701,
-    doubleOut: true,
-    enabled: true,
-  },
-];
-
-const comingSoonGames = [
   {
     title: "Cricket",
-    description: "Close 15 to 20 and bull.",
+    description: "Close numbers and race your opponent for points.",
+    status: "coming-soon",
   },
   {
     title: "Around the Clock",
-    description: "Hit numbers in order from 1 to 20.",
+    description: "Hit each number in order from 1 to 20.",
+    status: "coming-soon",
   },
   {
     title: "Bob's 27",
-    description: "Double practice game.",
+    description: "Practice doubles with a focused scoring format.",
+    status: "coming-soon",
   },
   {
     title: "Shanghai",
-    description: "Score singles, doubles and triples.",
+    description: "Score singles, doubles, and triples per round.",
+    status: "coming-soon",
   },
 ];
 
 export default function HomeScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAccountLoading, setIsAccountLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -90,70 +62,34 @@ export default function HomeScreen() {
   );
 
   async function checkAccount() {
-    setIsAccountLoading(true);
-
     const {
       data: { user },
-      error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      setIsLoggedIn(false);
+    setIsLoggedIn(Boolean(user));
+
+    if (!user) {
       setProfile(null);
-      setIsAccountLoading(false);
       return;
     }
 
-    setIsLoggedIn(true);
-
     const { profile: currentProfile } = await getCurrentUserProfile();
-
     setProfile(currentProfile);
-    setIsAccountLoading(false);
   }
 
   async function signOut() {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      Alert.alert("Logout failed", error.message);
-      return;
-    }
-
+    await supabase.auth.signOut();
     setIsLoggedIn(false);
     setProfile(null);
   }
 
-  function openAccountScreen() {
-    if (!isLoggedIn) {
-      router.push("/login");
+  function openCategory(category: GameCategory) {
+    if (category.status === "coming-soon" || !category.route) {
       return;
     }
 
-    if (!profile) {
-      router.push("/profile-setup");
-      return;
-    }
+    router.push(category.route as never);
   }
-
-  function startX01Game(game: GameCard) {
-    router.push({
-      pathname: "/x01",
-      params: {
-        title: game.title,
-        startingScore: String(game.startingScore),
-        doubleOut: String(game.doubleOut),
-      },
-    });
-  }
-
-  const accountLabel = isAccountLoading
-    ? "Loading..."
-    : profile
-      ? `@${profile.username}`
-      : isLoggedIn
-        ? "Set username"
-        : "Account";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -163,121 +99,105 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.eyebrow}>Choose game</Text>
-            <Text style={styles.title}>Darts Tracker</Text>
-            <Text style={styles.subtitle}>
-              Track your own matches with quick scoring.
-            </Text>
-          </View>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.eyebrow}>Darts Tracker</Text>
+              <Text style={styles.title}>Choose a game</Text>
+            </View>
 
-          <View style={styles.accountActions}>
-            <Pressable style={styles.accountButton} onPress={openAccountScreen}>
-              <Text style={styles.accountButtonText}>{accountLabel}</Text>
-            </Pressable>
-
-            {isLoggedIn && (
-              <>
-                <Pressable
-                  style={styles.friendsButton}
-                  onPress={() => router.push("/friends")}
-                >
-                  <Text style={styles.friendsButtonText}>Friends</Text>
-                </Pressable>
-
-                <Pressable style={styles.logoutButton} onPress={signOut}>
-                  <Text style={styles.logoutButtonText}>Log out</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </View>
-
-        {profile && (
-          <View style={styles.profileCard}>
-            <Text style={styles.profileLabel}>Signed in as</Text>
-            <Text style={styles.profileName}>{profile.username}</Text>
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Playable now</Text>
-
-          <View style={styles.gameGrid}>
-            {x01Games.map((game) => (
-              <View key={game.title} style={styles.gameCard}>
-                <View style={styles.gameText}>
-                  <Text style={styles.gameTitle}>{game.title}</Text>
-                  <Text style={styles.gameDescription}>{game.description}</Text>
-                </View>
-
-                <Text style={styles.gameMeta}>
-                  {game.doubleOut ? "Double out" : "Straight out"}
-                </Text>
-
-                <View style={styles.gameActions}>
+            <View style={styles.accountActions}>
+              {isLoggedIn ? (
+                <>
                   <Pressable
-                    style={styles.playButton}
-                    onPress={() => startX01Game(game)}
+                    style={styles.accountButton}
+                    onPress={() =>
+                      profile
+                        ? router.push("/friends")
+                        : router.push("/profile-setup")
+                    }
                   >
-                    <Text style={styles.playButtonText}>Play local</Text>
+                    <Text style={styles.accountButtonText}>
+                      {profile ? `@${profile.username}` : "Set username"}
+                    </Text>
                   </Pressable>
 
-                  {isLoggedIn && (
-                    <Pressable
-                      style={styles.friendLocalButton}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/select-friend-match",
-                          params: {
-                            title: game.title,
-                            startingScore: String(game.startingScore),
-                            doubleOut: String(game.doubleOut),
-                          },
-                        })
-                      }
-                    >
-                      <Text style={styles.friendLocalButtonText}>Friend local</Text>
-                    </Pressable>
-                  )}
+                  <Pressable
+                    style={styles.secondaryButton}
+                    onPress={() => router.push("/friends")}
+                  >
+                    <Text style={styles.secondaryButtonText}>Friends</Text>
+                  </Pressable>
 
-                  {isLoggedIn && (
-                    <Pressable
-                      style={styles.inviteButton}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/invite-match",
-                          params: {
-                            title: game.title,
-                            startingScore: String(game.startingScore),
-                            doubleOut: String(game.doubleOut),
-                          },
-                        })
-                      }
-                    >
-                      <Text style={styles.inviteButtonText}>Invite</Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            ))}
+                  <Pressable style={styles.logoutButton} onPress={signOut}>
+                    <Text style={styles.logoutButtonText}>Log out</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable
+                  style={styles.accountButton}
+                  onPress={() => router.push("/login")}
+                >
+                  <Text style={styles.accountButtonText}>Login</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
+
+          <Text style={styles.subtitle}>
+            Start by picking the type of darts game. The setup steps come after
+            that.
+          </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Coming later</Text>
+          <Text style={styles.sectionTitle}>Game modes</Text>
 
-          <View style={styles.gameGrid}>
-            {comingSoonGames.map((game) => (
-              <View key={game.title} style={[styles.gameCard, styles.disabledCard]}>
-                <View style={styles.gameText}>
-                  <Text style={styles.disabledTitle}>{game.title}</Text>
-                  <Text style={styles.disabledDescription}>{game.description}</Text>
-                </View>
+          <View style={styles.gameList}>
+            {gameCategories.map((category) => {
+              const isComingSoon = category.status === "coming-soon";
 
-                <Text style={styles.disabledMeta}>Soon</Text>
-              </View>
-            ))}
+              return (
+                <Pressable
+                  key={category.title}
+                  style={[
+                    styles.gameCard,
+                    isComingSoon && styles.disabledGameCard,
+                  ]}
+                  onPress={() => openCategory(category)}
+                >
+                  <View style={styles.gameText}>
+                    <Text
+                      style={[
+                        styles.gameTitle,
+                        isComingSoon && styles.disabledText,
+                      ]}
+                    >
+                      {category.title}
+                    </Text>
+
+                    <Text style={styles.gameDescription}>
+                      {category.description}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      isComingSoon && styles.disabledBadge,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        isComingSoon && styles.disabledBadgeText,
+                      ]}
+                    >
+                      {isComingSoon ? "Soon" : "Play"}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
       </ScrollView>
@@ -295,215 +215,137 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 28,
+    paddingTop: 12,
+    paddingBottom: 32,
   },
   header: {
-    marginBottom: 14,
-    gap: 14,
+    marginBottom: 28,
   },
-  headerText: {
-    width: "100%",
+  headerTop: {
+    gap: 18,
   },
   eyebrow: {
     color: "#f97316",
     fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     marginBottom: 4,
   },
   title: {
     color: "#ffffff",
-    fontSize: 34,
+    fontSize: 36,
     fontWeight: "900",
+    letterSpacing: -1,
   },
   subtitle: {
     color: "#94a3b8",
     fontSize: 15,
     fontWeight: "600",
-    marginTop: 6,
-    lineHeight: 21,
+    lineHeight: 22,
+    marginTop: 12,
   },
   accountActions: {
     flexDirection: "row",
-    gap: 10,
     flexWrap: "wrap",
+    gap: 8,
   },
   accountButton: {
-    alignSelf: "flex-start",
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1f2937",
+    backgroundColor: "#f97316",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
   accountButtonText: {
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  secondaryButton: {
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  secondaryButtonText: {
     color: "#fed7aa",
     fontSize: 13,
     fontWeight: "900",
   },
   logoutButton: {
-    alignSelf: "flex-start",
-    backgroundColor: "#1e293b",
+    backgroundColor: "#0f172a",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#1f2937",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
   logoutButtonText: {
-    color: "#cbd5e1",
+    color: "#94a3b8",
     fontSize: 13,
     fontWeight: "900",
   },
-  profileCard: {
-    backgroundColor: "#0f172a",
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 20,
-  },
-  profileLabel: {
-    color: "#94a3b8",
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  profileName: {
-    color: "#ffffff",
-    fontSize: 22,
-    fontWeight: "900",
-  },
   section: {
-    marginBottom: 22,
+    gap: 12,
   },
   sectionTitle: {
     color: "#ffffff",
     fontSize: 18,
     fontWeight: "900",
-    marginBottom: 10,
   },
-  gameGrid: {
-    gap: 10,
+  gameList: {
+    gap: 12,
   },
   gameCard: {
-    width: "100%",
     backgroundColor: "#111827",
     borderWidth: 1,
     borderColor: "#1f2937",
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 16,
-    gap: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  disabledGameCard: {
+    opacity: 0.58,
   },
   gameText: {
-    width: "100%",
+    flex: 1,
   },
   gameTitle: {
     color: "#ffffff",
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "900",
-    marginBottom: 4,
+  },
+  disabledText: {
+    color: "#cbd5e1",
   },
   gameDescription: {
     color: "#94a3b8",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    lineHeight: 18,
+    lineHeight: 20,
+    marginTop: 5,
   },
-  gameMeta: {
-    alignSelf: "flex-start",
-    color: "#fed7aa",
-    fontSize: 12,
-    fontWeight: "900",
-    backgroundColor: "#1f2937",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  disabledCard: {
-    opacity: 0.48,
-  },
-  disabledTitle: {
-    color: "#cbd5e1",
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 4,
-  },
-  disabledDescription: {
-    color: "#64748b",
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18,
-  },
-  disabledMeta: {
-    alignSelf: "flex-start",
-    color: "#94a3b8",
-    fontSize: 12,
-    fontWeight: "900",
-    backgroundColor: "#1e293b",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  friendsButton: {
-    alignSelf: "flex-start",
+  statusBadge: {
     backgroundColor: "#f97316",
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  friendsButtonText: {
+  statusBadgeText: {
     color: "#111827",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
   },
-  gameActions: {
-    flexDirection: "row",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  playButton: {
-    backgroundColor: "#f97316",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  playButtonText: {
-    color: "#111827",
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  inviteButton: {
+  disabledBadge: {
     backgroundColor: "#1e293b",
     borderWidth: 1,
     borderColor: "#334155",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
   },
-  inviteButtonText: {
-    color: "#fed7aa",
-    fontSize: 13,
-    fontWeight: "900",
+  disabledBadgeText: {
+    color: "#94a3b8",
   },
-  friendLocalButton: {
-  backgroundColor: "#111827",
-  borderWidth: 1,
-  borderColor: "#f97316",
-  borderRadius: 999,
-  paddingHorizontal: 14,
-  paddingVertical: 9,
-},
-friendLocalButtonText: {
-  color: "#fed7aa",
-  fontSize: 13,
-  fontWeight: "900",
-},
 });

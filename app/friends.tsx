@@ -95,7 +95,7 @@ export default function FriendsScreen() {
             return;
         }
 
-        router.push({
+        router.replace({
             pathname: "/match-room/[id]",
             params: {
                 id: matchRoomId,

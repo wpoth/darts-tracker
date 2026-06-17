@@ -271,24 +271,24 @@ export async function getOutgoingMatchInvites() {
         .from("match_invites")
         .select(
             `
-      id,
-      sender_id,
-      receiver_id,
-      match_room_id,
-      game_title,
-      starting_score,
-      double_out,
-      status,
-      created_at,
-      updated_at,
-      receiver:profiles!match_invites_receiver_id_fkey (
-        id,
-        username
-      )
-    `
+             id,
+             sender_id,
+             receiver_id,
+             match_room_id,
+             game_title,
+             starting_score,
+             double_out,
+             status,
+             created_at,
+             updated_at,
+             receiver:profiles!match_invites_receiver_id_fkey (
+               id,
+               username
+             )
+            `
         )
         .eq("sender_id", user.id)
-        .eq("status", "pending")
+        .in("status", ["pending", "accepted"])
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -341,13 +341,20 @@ export async function respondToMatchInvite(
     const invite = normalizeMatchInvite(data as RawMatchInvite);
 
     if (status === "accepted" && invite.match_room_id) {
-        await supabase
+        const { error: roomUpdateError } = await supabase
             .from("match_rooms")
             .update({
                 status: "active",
                 updated_at: new Date().toISOString(),
             })
             .eq("id", invite.match_room_id);
+
+        if (roomUpdateError) {
+            return {
+                invite: null,
+                error: roomUpdateError.message,
+            };
+        }
     }
 
     return {
