@@ -22,9 +22,11 @@ import {
 
 import {
     getIncomingMatchInvites,
+    getMyMatchInvites,
     respondToMatchInvite,
     type MatchInvite,
 } from "@/src/lib/matchInvitesDatabase";
+
 type IncomingRequest = {
     id: string;
     sender_id: string;
@@ -36,6 +38,7 @@ type IncomingRequest = {
 };
 
 export default function FriendsScreen() {
+    const [myMatchInvites, setMyMatchInvites] = useState<MatchInvite[]>([]);
     const [matchInvites, setMatchInvites] = useState<MatchInvite[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<FriendProfile[]>([]);
@@ -57,6 +60,7 @@ export default function FriendsScreen() {
         const incomingResult = await getIncomingFriendRequests();
         const friendsResult = await getFriends();
         const matchInvitesResult = await getIncomingMatchInvites();
+        const myMatchInvitesResult = await getMyMatchInvites();
 
         if (incomingResult.error) {
             Alert.alert("Requests failed", incomingResult.error);
@@ -76,7 +80,27 @@ export default function FriendsScreen() {
             setMatchInvites(matchInvitesResult.invites);
         }
 
+        if (myMatchInvitesResult.error) {
+            Alert.alert("Your match invites failed", myMatchInvitesResult.error);
+        } else {
+            setMyMatchInvites(myMatchInvitesResult.invites);
+        }
+
         setIsLoading(false);
+    }
+
+    function openMatchRoom(matchRoomId: string | null) {
+        if (!matchRoomId) {
+            Alert.alert("Match unavailable", "This invite has no match room.");
+            return;
+        }
+
+        router.push({
+            pathname: "/match-room/[id]",
+            params: {
+                id: matchRoomId,
+            },
+        });
     }
 
     async function handleSearch(value: string) {
@@ -121,15 +145,11 @@ export default function FriendsScreen() {
             return;
         }
 
-        if (status === "accepted" && invite) {
+        if (status === "accepted" && invite?.match_room_id) {
             router.push({
-                pathname: "/x01",
+                pathname: "/match-room/[id]",
                 params: {
-                    title: invite.game_title,
-                    startingScore: String(invite.starting_score),
-                    doubleOut: String(invite.double_out),
-                    playerOneName: invite.sender?.username ?? "Player 1",
-                    playerTwoName: "You",
+                    id: invite.match_room_id,
                 },
             });
 
@@ -247,6 +267,48 @@ export default function FriendsScreen() {
                                             <Text style={styles.declineButtonText}>Decline</Text>
                                         </Pressable>
                                     </View>
+                                </View>
+                            ))
+                        )}
+                    </View>
+                </View>
+
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Your match invites</Text>
+
+                    <View style={styles.list}>
+                        {myMatchInvites.length === 0 ? (
+                            <Text style={styles.emptyText}>No sent match invites.</Text>
+                        ) : (
+                            myMatchInvites.map((invite) => (
+                                <View key={invite.id} style={styles.requestCard}>
+                                    <View style={styles.rowText}>
+                                        <Text style={styles.primaryText}>
+                                            @{invite.receiver?.username ?? "Unknown user"}
+                                        </Text>
+
+                                        <Text style={styles.secondaryText}>
+                                            {invite.game_title} ·{" "}
+                                            {invite.double_out ? "Double out" : "Straight out"}
+                                        </Text>
+
+                                        <Text style={styles.statusText}>
+                                            Status: {invite.status}
+                                        </Text>
+                                    </View>
+
+                                    {invite.status === "accepted" ? (
+                                        <Pressable
+                                            style={styles.acceptButton}
+                                            onPress={() => openMatchRoom(invite.match_room_id)}
+                                        >
+                                            <Text style={styles.acceptButtonText}>Open match</Text>
+                                        </Pressable>
+                                    ) : (
+                                        <View style={styles.pendingBadge}>
+                                            <Text style={styles.pendingBadgeText}>Waiting</Text>
+                                        </View>
+                                    )}
                                 </View>
                             ))
                         )}
@@ -481,5 +543,26 @@ const styles = StyleSheet.create({
         color: "#64748b",
         fontSize: 14,
         fontWeight: "700",
+    },
+    statusText: {
+        color: "#fed7aa",
+        fontSize: 12,
+        fontWeight: "800",
+        marginTop: 5,
+        textTransform: "capitalize",
+    },
+    pendingBadge: {
+        alignSelf: "flex-start",
+        backgroundColor: "#1e293b",
+        borderWidth: 1,
+        borderColor: "#334155",
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+    },
+    pendingBadgeText: {
+        color: "#cbd5e1",
+        fontSize: 12,
+        fontWeight: "900",
     },
 });

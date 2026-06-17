@@ -1,5 +1,6 @@
 import { supabase } from "@/src/lib/supabase";
 import type { FriendProfile } from "@/src/lib/friendsDatabase";
+import { getCurrentUserProfile } from "@/src/lib/profileDatabase";
 
 export type MatchInviteStatus =
     | "pending"
@@ -11,6 +12,7 @@ export type MatchInvite = {
     id: string;
     sender_id: string;
     receiver_id: string;
+    match_room_id: string | null;
     game_title: string;
     starting_score: number;
     double_out: boolean;
@@ -50,6 +52,26 @@ function normalizeMatchInvite(invite: RawMatchInvite): MatchInvite {
     };
 }
 
+async function getProfileById(profileId: string) {
+    const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .eq("id", profileId)
+        .single();
+
+    if (error) {
+        return {
+            profile: null,
+            error: error.message,
+        };
+    }
+
+    return {
+        profile: data as FriendProfile,
+        error: null,
+    };
+}
+
 export async function sendMatchInvite(options: {
     receiverId: string;
     gameTitle: string;
@@ -75,11 +97,81 @@ export async function sendMatchInvite(options: {
         };
     }
 
+    const { profile: senderProfile, error: senderProfileError } =
+        await getCurrentUserProfile();
+
+    if (senderProfileError || !senderProfile) {
+        return {
+            invite: null,
+            error: senderProfileError ?? "Your profile could not be found.",
+        };
+    }
+
+    const { profile: receiverProfile, error: receiverProfileError } =
+        await getProfileById(options.receiverId);
+
+    if (receiverProfileError || !receiverProfile) {
+        return {
+            invite: null,
+            error: receiverProfileError ?? "Friend profile could not be found.",
+        };
+    }
+
+    const { data: room, error: roomError } = await supabase
+        .from("match_rooms")
+        .insert({
+            created_by: user.id,
+            opponent_id: options.receiverId,
+            game_title: options.gameTitle,
+            starting_score: options.startingScore,
+            double_out: options.doubleOut,
+            status: "pending",
+            current_player_id: user.id,
+        })
+        .select("id")
+        .single();
+
+    if (roomError) {
+        return {
+            invite: null,
+            error: roomError.message,
+        };
+    }
+
+    const matchRoomId = room.id as string;
+
+    const { error: playersError } = await supabase
+        .from("match_room_players")
+        .insert([
+            {
+                match_room_id: matchRoomId,
+                profile_id: senderProfile.id,
+                username: senderProfile.username,
+                player_order: 1,
+                remaining: options.startingScore,
+            },
+            {
+                match_room_id: matchRoomId,
+                profile_id: receiverProfile.id,
+                username: receiverProfile.username,
+                player_order: 2,
+                remaining: options.startingScore,
+            },
+        ]);
+
+    if (playersError) {
+        return {
+            invite: null,
+            error: playersError.message,
+        };
+    }
+
     const { data, error } = await supabase
         .from("match_invites")
         .insert({
             sender_id: user.id,
             receiver_id: options.receiverId,
+            match_room_id: matchRoomId,
             game_title: options.gameTitle,
             starting_score: options.startingScore,
             double_out: options.doubleOut,
@@ -90,6 +182,7 @@ export async function sendMatchInvite(options: {
       id,
       sender_id,
       receiver_id,
+      match_room_id,
       game_title,
       starting_score,
       double_out,
@@ -132,6 +225,7 @@ export async function getIncomingMatchInvites() {
       id,
       sender_id,
       receiver_id,
+      match_room_id,
       game_title,
       starting_score,
       double_out,
@@ -180,6 +274,7 @@ export async function getOutgoingMatchInvites() {
       id,
       sender_id,
       receiver_id,
+      match_room_id,
       game_title,
       starting_score,
       double_out,
@@ -225,6 +320,7 @@ export async function respondToMatchInvite(
       id,
       sender_id,
       receiver_id,
+      match_room_id,
       game_title,
       starting_score,
       double_out,
@@ -242,8 +338,69 @@ export async function respondToMatchInvite(
         };
     }
 
+    const invite = normalizeMatchInvite(data as RawMatchInvite);
+
+    if (status === "accepted" && invite.match_room_id) {
+        await supabase
+            .from("match_rooms")
+            .update({
+                status: "active",
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", invite.match_room_id);
+    }
+
     return {
-        invite: normalizeMatchInvite(data as RawMatchInvite),
+        invite,
+        error: null,
+    };
+}
+
+export async function getMyMatchInvites() {
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+        return {
+            invites: [] as MatchInvite[],
+            error: "Not logged in.",
+        };
+    }
+
+    const { data, error } = await supabase
+        .from("match_invites")
+        .select(
+            `
+      id,
+      sender_id,
+      receiver_id,
+      match_room_id,
+      game_title,
+      starting_score,
+      double_out,
+      status,
+      created_at,
+      updated_at,
+      receiver:profiles!match_invites_receiver_id_fkey (
+        id,
+        username
+      )
+    `
+        )
+        .eq("sender_id", user.id)
+        .in("status", ["pending", "accepted"])
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        return {
+            invites: [] as MatchInvite[],
+            error: error.message,
+        };
+    }
+
+    return {
+        invites: ((data ?? []) as RawMatchInvite[]).map(normalizeMatchInvite),
         error: null,
     };
 }
