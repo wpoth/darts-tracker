@@ -225,6 +225,24 @@ export default function HomeScreen() {
 
                   {isLoggedIn && (
                     <Pressable
+                      style={styles.friendLocalButton}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/select-friend-match",
+                          params: {
+                            title: game.title,
+                            startingScore: String(game.startingScore),
+                            doubleOut: String(game.doubleOut),
+                          },
+                        })
+                      }
+                    >
+                      <Text style={styles.friendLocalButtonText}>Friend local</Text>
+                    </Pressable>
+                  )}
+
+                  {isLoggedIn && (
+                    <Pressable
                       style={styles.inviteButton}
                       onPress={() =>
                         router.push({
@@ -475,4 +493,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
   },
+  friendLocalButton: {
+  backgroundColor: "#111827",
+  borderWidth: 1,
+  borderColor: "#f97316",
+  borderRadius: 999,
+  paddingHorizontal: 14,
+  paddingVertical: 9,
+},
+friendLocalButtonText: {
+  color: "#fed7aa",
+  fontSize: 13,
+  fontWeight: "900",
+},
 });
