@@ -125,6 +125,13 @@ export async function submitMatchRoomScore(matchRoomId: string, score: number) {
         };
     }
 
+    if (state.room.status === "pending") {
+        return {
+            turn: null,
+            error: "Your opponent has not accepted the invite yet.",
+        };
+    }
+
     if (state.room.current_player_id !== user.id) {
         return {
             turn: null,

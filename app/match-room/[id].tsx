@@ -204,13 +204,12 @@ export default function MatchRoomScreen() {
         setScoreInput("");
         await loadRoomState();
     }
-
     const currentPlayer = players.find(
         (player) => player.profile_id === room?.current_player_id
     );
 
     const isYourTurn = currentUserId === room?.current_player_id;
-
+    const isPending = room?.status === "pending";
     return (
         <SafeAreaView style={styles.safeArea}>
             <ScrollView
@@ -266,6 +265,14 @@ export default function MatchRoomScreen() {
                             Winner:{" "}
                             {players.find((player) => player.profile_id === room.winner_id)
                                 ?.username ?? "Unknown"}
+                        </Text>
+                    </View>
+                ) : isPending ? (
+                    <View style={styles.waitingCard}>
+                        <Text style={styles.waitingTitle}>Waiting for opponent</Text>
+                        <Text style={styles.waitingText}>
+                            The match room is ready. Your friend needs to accept the invite before the
+                            match starts.
                         </Text>
                     </View>
                 ) : (

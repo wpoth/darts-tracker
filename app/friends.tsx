@@ -296,19 +296,22 @@ export default function FriendsScreen() {
                                             Status: {invite.status}
                                         </Text>
                                     </View>
-
-                                    {invite.status === "accepted" ? (
+                                    <View style={styles.requestActions}>
                                         <Pressable
                                             style={styles.acceptButton}
                                             onPress={() => openMatchRoom(invite.match_room_id)}
                                         >
-                                            <Text style={styles.acceptButtonText}>Open match</Text>
+                                            <Text style={styles.acceptButtonText}>
+                                                {invite.status === "accepted" ? "Open match" : "Join room"}
+                                            </Text>
                                         </Pressable>
-                                    ) : (
-                                        <View style={styles.pendingBadge}>
-                                            <Text style={styles.pendingBadgeText}>Waiting</Text>
-                                        </View>
-                                    )}
+
+                                        {invite.status === "pending" && (
+                                            <View style={styles.pendingBadge}>
+                                                <Text style={styles.pendingBadgeText}>Waiting</Text>
+                                            </View>
+                                        )}
+                                    </View>
                                 </View>
                             ))
                         )}

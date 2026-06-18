@@ -49,7 +49,7 @@ export default function InviteMatchScreen() {
     }
 
     async function inviteFriend(friend: FriendProfile) {
-        const { error } = await sendMatchInvite({
+        const { invite, error } = await sendMatchInvite({
             receiverId: friend.id,
             gameTitle: title,
             startingScore,
@@ -61,12 +61,17 @@ export default function InviteMatchScreen() {
             return;
         }
 
-        Alert.alert("Invite sent", `Match invite sent to @${friend.username}.`, [
-            {
-                text: "Back to games",
-                onPress: () => router.replace("/"),
+        if (!invite?.match_room_id) {
+            Alert.alert("Invite sent", "The invite was sent, but no match room was found.");
+            return;
+        }
+
+        router.replace({
+            pathname: "/match-room/[id]",
+            params: {
+                id: invite.match_room_id,
             },
-        ]);
+        });
     }
 
     return (
