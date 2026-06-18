@@ -9,26 +9,39 @@ export function speakTurnResult(
 ) {
     Speech.stop();
 
-    if (checkout) {
-        Speech.speak(`${playerName} checked out with ${score}.`, {
-            rate: 0.95,
-            pitch: 1,
-        });
+    const cleanName = playerName.replace("@", "");
 
+    if (checkout) {
+        Speech.speak(`${cleanName} checked out with ${score}.`, {
+            rate: 0.9,
+            pitch: 1,
+            language: "en-US",
+        });
         return;
     }
 
     if (bust) {
-        Speech.speak(`${playerName} scored ${score}. Bust.`, {
-            rate: 0.95,
+        Speech.speak(`${cleanName} scored ${score}. Bust.`, {
+            rate: 0.9,
             pitch: 1,
+            language: "en-US",
         });
-
         return;
     }
 
-    Speech.speak(`${playerName} scored ${score}. ${remainingAfter} remaining.`, {
-        rate: 0.95,
+    Speech.speak(`${cleanName} scored ${score}. ${remainingAfter} remaining.`, {
+        rate: 0.9,
         pitch: 1,
+        language: "en-US",
+    });
+}
+
+export function testVoiceover() {
+    Speech.stop();
+
+    Speech.speak("Voiceover is working.", {
+        rate: 0.9,
+        pitch: 1,
+        language: "en-US",
     });
 }

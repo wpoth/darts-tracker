@@ -9,9 +9,10 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { recordRemoteMatchResult } from "@/src/lib/matchResultsDatabase";
+
 import { CheckoutSuggestions } from "@/src/components/CheckoutSuggestions";
 import { ScoreInput } from "@/src/components/ScoreInput";
+import { recordRemoteMatchResult } from "@/src/lib/matchResultsDatabase";
 import {
     getMatchRoomState,
     submitMatchRoomScore,
@@ -20,7 +21,7 @@ import {
     type MatchRoomTurn,
 } from "@/src/lib/matchRoomsDatabase";
 import { supabase } from "@/src/lib/supabase";
-import { speakTurnResult } from "@/src/lib/voiceover";
+import { speakTurnResult, testVoiceover } from "@/src/lib/voiceover";
 
 export default function MatchRoomScreen() {
     const params = useLocalSearchParams<{ id?: string }>();
@@ -35,8 +36,14 @@ export default function MatchRoomScreen() {
     const lastSpokenTurnIdRef = useRef<string | null>(null);
     const lastSubmittedTurnIdRef = useRef<string | null>(null);
     const hasLoadedInitialTurnsRef = useRef(false);
+    const hasRecordedResultRef = useRef(false);
 
     useEffect(() => {
+        hasLoadedInitialTurnsRef.current = false;
+        lastSpokenTurnIdRef.current = null;
+        lastSubmittedTurnIdRef.current = null;
+        hasRecordedResultRef.current = false;
+
         loadInitialData();
     }, [matchRoomId]);
 
@@ -120,13 +127,16 @@ export default function MatchRoomScreen() {
         setPlayers(currentPlayers);
         setTurns(currentTurns);
 
-        if (currentRoom?.status === "finished") {
+        if (currentRoom?.status === "finished" && !hasRecordedResultRef.current) {
+            hasRecordedResultRef.current = true;
+
             await recordRemoteMatchResult({
                 room: currentRoom,
                 players: currentPlayers,
                 turns: currentTurns,
             });
         }
+
         const latestTurn = currentTurns[0];
 
         if (!hasLoadedInitialTurnsRef.current) {
@@ -204,12 +214,14 @@ export default function MatchRoomScreen() {
         setScoreInput("");
         await loadRoomState();
     }
+
     const currentPlayer = players.find(
         (player) => player.profile_id === room?.current_player_id
     );
 
     const isYourTurn = currentUserId === room?.current_player_id;
     const isPending = room?.status === "pending";
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <ScrollView
@@ -218,9 +230,15 @@ export default function MatchRoomScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 <View style={styles.header}>
-                    <Pressable onPress={() => router.back()} hitSlop={12}>
-                        <Text style={styles.backText}>← Back</Text>
-                    </Pressable>
+                    <View style={styles.topRow}>
+                        <Pressable onPress={() => router.back()} hitSlop={12}>
+                            <Text style={styles.backText}>← Back</Text>
+                        </Pressable>
+
+                        <Pressable style={styles.testVoiceButton} onPress={testVoiceover}>
+                            <Text style={styles.testVoiceButtonText}>Test voice</Text>
+                        </Pressable>
+                    </View>
 
                     <Text style={styles.eyebrow}>
                         {room?.double_out ? "Double out" : "Straight out"}
@@ -231,13 +249,17 @@ export default function MatchRoomScreen() {
                     <Text style={styles.subtitle}>
                         {room?.status === "finished"
                             ? "Match finished"
-                            : `Current turn: ${currentPlayer?.username ?? "Unknown"}`}
+                            : isPending
+                                ? "Waiting for opponent"
+                                : `Current turn: ${currentPlayer?.username ?? "Unknown"}`}
                     </Text>
                 </View>
 
                 <View style={styles.playersGrid}>
                     {players.map((player) => {
-                        const isActive = player.profile_id === room?.current_player_id;
+                        const isActive =
+                            player.profile_id === room?.current_player_id &&
+                            room?.status === "active";
 
                         return (
                             <View
@@ -271,8 +293,8 @@ export default function MatchRoomScreen() {
                     <View style={styles.waitingCard}>
                         <Text style={styles.waitingTitle}>Waiting for opponent</Text>
                         <Text style={styles.waitingText}>
-                            The match room is ready. Your friend needs to accept the invite before the
-                            match starts.
+                            The match room is ready. Your friend needs to accept the invite
+                            before the match starts.
                         </Text>
                     </View>
                 ) : (
@@ -355,18 +377,37 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     content: {
-        paddingHorizontal: 14,
+        paddingHorizontal: 12,
         paddingTop: 8,
         paddingBottom: 28,
     },
     header: {
         marginBottom: 10,
     },
+    topRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 12,
+    },
     backText: {
         color: "#94a3b8",
         fontSize: 14,
         fontWeight: "800",
-        marginBottom: 12,
+    },
+    testVoiceButton: {
+        backgroundColor: "#111827",
+        borderWidth: 1,
+        borderColor: "#334155",
+        borderRadius: 999,
+        paddingHorizontal: 11,
+        paddingVertical: 7,
+    },
+    testVoiceButtonText: {
+        color: "#fed7aa",
+        fontSize: 12,
+        fontWeight: "900",
     },
     eyebrow: {
         color: "#f97316",
@@ -377,7 +418,7 @@ const styles = StyleSheet.create({
     },
     title: {
         color: "#ffffff",
-        fontSize: 30,
+        fontSize: 28,
         fontWeight: "900",
         marginTop: 2,
     },
@@ -399,7 +440,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#1f2937",
         borderRadius: 16,
-        padding: 12,
+        padding: 10,
         minWidth: 0,
     },
     activePlayerCard: {
@@ -413,7 +454,7 @@ const styles = StyleSheet.create({
     },
     playerScore: {
         color: "#ffffff",
-        fontSize: 36,
+        fontSize: 34,
         fontWeight: "900",
         marginTop: 2,
     },
@@ -473,6 +514,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "700",
         marginTop: 4,
+        lineHeight: 20,
     },
     history: {
         marginTop: 12,
