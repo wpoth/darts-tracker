@@ -1,4 +1,8 @@
 import { applyTurn } from "@/src/lib/dartsScoring";
+import {
+    updateCurrentUserStatsAfterMatch,
+    updateCurrentUserStatsAfterTurn,
+} from "@/src/lib/playerStatsDatabase";
 import { supabase } from "@/src/lib/supabase";
 
 export type MatchRoom = {
@@ -73,7 +77,8 @@ export async function getMatchRoomState(matchRoomId: string) {
         .select("*")
         .eq("match_room_id", matchRoomId)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .order("created_at", { ascending: false })
+        .limit(200);
 
     if (turnsError) {
         return {
@@ -208,6 +213,31 @@ export async function submitMatchRoomScore(matchRoomId: string, score: number) {
             turn: null,
             error: roomUpdateError.message,
         };
+    }
+
+    const turnStatsResult = await updateCurrentUserStatsAfterTurn({
+        score,
+        checkout: result.checkout,
+    });
+
+    if (turnStatsResult.error) {
+        return {
+            turn: null,
+            error: turnStatsResult.error,
+        };
+    }
+
+    if (result.checkout) {
+        const matchStatsResult = await updateCurrentUserStatsAfterMatch({
+            won: true,
+        });
+
+        if (matchStatsResult.error) {
+            return {
+                turn: null,
+                error: matchStatsResult.error,
+            };
+        }
     }
 
     return {

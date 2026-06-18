@@ -16,6 +16,13 @@ import { applyTurn } from "@/src/lib/dartsScoring";
 import { speakTurnResult } from "@/src/lib/voiceover";
 import type { Player, Turn } from "@/src/types/darts";
 
+import {
+    updateCurrentUserStatsAfterMatch,
+    updateCurrentUserStatsAfterTurn,
+} from "@/src/lib/playerStatsDatabase";
+
+import { recordLocalX01MatchResult } from "@/src/lib/matchResultsDatabase";
+
 type PlayerMode = "solo" | "local-two" | "local-friend" | "remote";
 
 export default function X01Screen() {
@@ -27,6 +34,8 @@ export default function X01Screen() {
         playerMode?: string;
         playerOneName?: string;
         playerTwoName?: string;
+        playerOneProfileId?: string;
+        playerTwoProfileId?: string;
     }>();
 
     const title = params.title ?? "501";
@@ -39,6 +48,9 @@ export default function X01Screen() {
 
     const playerOneName = params.playerOneName ?? "Player 1";
     const playerTwoName = params.playerTwoName ?? "Player 2";
+
+    const playerOneProfileId = params.playerOneProfileId ?? null;
+    const playerTwoProfileId = params.playerTwoProfileId ?? null;
 
     const initialPlayers = useMemo<Player[]>(() => {
         if (isSolo) {
@@ -148,6 +160,11 @@ export default function X01Screen() {
             result.checkout
         );
 
+        updateCurrentUserStatsAfterTurn({
+            score,
+            checkout: result.checkout,
+        });
+
         if (!result.bust) {
             setPlayers((previousPlayers) =>
                 previousPlayers.map((player) =>
@@ -164,6 +181,30 @@ export default function X01Screen() {
         setScoreInput("");
 
         if (result.checkout) {
+            updateCurrentUserStatsAfterMatch({
+                won: true,
+            });
+
+            recordLocalX01MatchResult({
+                gameTitle: title,
+                startingScore,
+                doubleIn,
+                doubleOut,
+                matchType: playerMode === "solo" ? "solo" : playerMode === "local-friend" ? "local-friend" : "local-two",
+                players: players.map((player) =>
+                    player.id === currentPlayer.id
+                        ? {
+                            ...player,
+                            remaining: result.remainingAfter,
+                        }
+                        : player
+                ),
+                turns: [turn, ...turns],
+                winnerPlayerId: currentPlayer.id,
+                playerOneProfileId,
+                playerTwoProfileId,
+            });
+
             finishLeg(currentPlayer.name);
             return;
         }

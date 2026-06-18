@@ -9,7 +9,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
+import { recordRemoteMatchResult } from "@/src/lib/matchResultsDatabase";
 import { CheckoutSuggestions } from "@/src/components/CheckoutSuggestions";
 import { ScoreInput } from "@/src/components/ScoreInput";
 import {
@@ -120,6 +120,13 @@ export default function MatchRoomScreen() {
         setPlayers(currentPlayers);
         setTurns(currentTurns);
 
+        if (currentRoom?.status === "finished") {
+            await recordRemoteMatchResult({
+                room: currentRoom,
+                players: currentPlayers,
+                turns: currentTurns,
+            });
+        }
         const latestTurn = currentTurns[0];
 
         if (!hasLoadedInitialTurnsRef.current) {

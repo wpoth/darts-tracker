@@ -112,7 +112,7 @@ export default function HomeScreen() {
                     style={styles.accountButton}
                     onPress={() =>
                       profile
-                        ? router.push("/friends")
+                        ? router.push("/profile")
                         : router.push("/profile-setup")
                     }
                   >

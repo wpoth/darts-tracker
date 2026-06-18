@@ -75,6 +75,8 @@ export default function SelectFriendMatchScreen() {
                 playerMode: "local-friend",
                 playerOneName: profile?.username ?? "Player 1",
                 playerTwoName: friend.username,
+                playerOneProfileId: profile?.id ?? "",
+                playerTwoProfileId: friend.id,
             },
         });
     }
